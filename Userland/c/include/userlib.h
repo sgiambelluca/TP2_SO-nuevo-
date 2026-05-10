@@ -99,6 +99,12 @@ void processLine(char * buff, uint32_t * history_len);
 uint64_t num_to_str(uint64_t value, char * dest, int base);
 void gen_invalid_opcode(void);
 
+// ─── Argumentos del comando actual ────────────────────────────────────────────
+// Devuelve el resto de la linea (despues del primer espacio) o NULL si no hay
+// argumentos. Lo setea processLine antes de invocar al comando. Usado por
+// test_proc y test_prio.
+const char *cmd_args(void);
+
 // ─── Comandos de shell ────────────────────────────────────────────────────────
 void help(void);
 void clear(void);

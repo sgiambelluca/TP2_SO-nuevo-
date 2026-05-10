@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include "../c/include/userlib.h"
 #include "../c/include/shell.h"
+#include "include/test_proc.h"
+#include "include/test_prio.h"
 
 static Command commands[] = {
     {"help", help},
@@ -17,9 +19,19 @@ static Command commands[] = {
     {"bmMEM", bmMEM},
     {"bmKEY", bmKEY},
     {"testMM", testMM},
+    {"test_proc", test_proc},
+    {"test_prio", test_prio},
     {"ps", ps},
     {0, 0},
 };
+
+/* Argumentos del comando actual: lo setea processLine antes de invocar al
+   comando, y se accede via cmd_args(). NULL si no hay argumentos. */
+static const char *g_cmd_args = 0;
+
+const char *cmd_args(void){
+    return g_cmd_args;
+}
 
 
 RedrawStruct redrawBuffer[REDRAW_BUFF];
@@ -337,6 +349,8 @@ void help(){
     shellPrintString("bmMEM     ->   benchmark de MEM.\n");
     shellPrintString("bmKEY     ->   benchmark de teclado.\n");
     shellPrintString("testMM    ->   test del memory manager.\n");
+    shellPrintString("test_proc <max>     ->   test de procesos (crea, bloquea, mata dummies).\n");
+    shellPrintString("test_prio <target>  ->   test de prioridades (3 procesos vs misma/distinta prio).\n");
     shellPrintString("ps        ->   lista de procesos activos.\n");
 }
 
@@ -497,20 +511,38 @@ char getchar(){
     return c;
 }
 
-// Busca y ejecuta el comando ingresado
+// Busca y ejecuta el comando ingresado. Si el comando tiene argumentos
+// separados por espacio (e.g. "test_proc 5"), los expone via cmd_args().
 void processLine(char * buff, uint32_t * history_len){
+    (void)history_len;
     if(strlen(buff) == 0){
         return;
+    }
+
+    /* Cortar al primer espacio: nombre del comando | resto = argumentos. */
+    g_cmd_args = 0;
+    for(size_t i = 0; buff[i]; i++){
+        if(buff[i] == ' '){
+            buff[i] = '\0';
+            size_t j = i + 1;
+            while(buff[j] == ' ') j++;
+            if(buff[j] != '\0'){
+                g_cmd_args = &buff[j];
+            }
+            break;
+        }
     }
 
     for(int i = 0; commands[i].name != 0; i++){
         if(strcmp(buff, commands[i].name) == 0){
             commands[i].function();
+            g_cmd_args = 0;
             return;
         }
     }
 
-     shellPrintString("Comando no reconocido! Escriba 'help' para ver los comandos disponibles.\n");
+    g_cmd_args = 0;
+    shellPrintString("Comando no reconocido! Escriba 'help' para ver los comandos disponibles.\n");
 }
 
 static const char *state_names[] = {"FREE", "READY", "RUNNING", "BLOCKED", "ZOMBIE"};
