@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include "../c/include/userlib.h"
 #include "../c/include/shell.h"
+#include "include/testMM.h"
 #include "include/test_proc.h"
 #include "include/test_prio.h"
 #include "include/test_sync.h"

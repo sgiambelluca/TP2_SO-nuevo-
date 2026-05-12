@@ -2,6 +2,7 @@
 #include "include/syscall.h"
 #include "include/test_util.h"
 #include "include/userlib.h"
+#include "include/shell.h"
 
 #define SEM_ID              "sem"
 #define TOTAL_PAIR_PROCESSES 2
@@ -36,7 +37,7 @@ void my_process_inc(int argc, char *argv[]) {
     if (use_sem) {
         if (!my_sem_open(SEM_ID, 1)) {
             printf("test_sync: ERROR abriendo semaforo\n");
-            return -1;
+            return;
         }
     }
 

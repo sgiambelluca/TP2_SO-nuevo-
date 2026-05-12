@@ -40,4 +40,10 @@ void     sys_unblock(uint64_t pid);
 void     sys_yield(void);
 int64_t  sys_waitpid(uint64_t pid);
 
+// Syscalls 29-32 (semáforos)
+int64_t  sys_sem_open(const char *name, uint64_t initial_value);
+int64_t  sys_sem_wait(const char *name);
+int64_t  sys_sem_post(const char *name);
+int64_t  sys_sem_close(const char *name);
+
 #endif

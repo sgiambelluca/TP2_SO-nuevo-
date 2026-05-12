@@ -2,6 +2,7 @@
 #include "include/syscall.h"
 #include "include/test_util.h"
 #include "include/userlib.h"
+#include "include/shell.h"
 
 enum State { RUNNING, BLOCKED, KILLED };
 

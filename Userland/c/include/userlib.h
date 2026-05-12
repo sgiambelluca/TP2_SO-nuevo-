@@ -127,7 +127,6 @@ void bmMEM(void);
 void bmCPU(void);
 void bmFPS(void);
 void bmKEY(void);
-void testMM(void);
 void ps(void);
 
 #endif
