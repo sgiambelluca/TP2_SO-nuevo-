@@ -8,6 +8,7 @@
 #include "memoryManager.h"
 #include "process.h"
 #include "scheduler.h"
+#include "semaphore.h"
 
 // ─── Syscalls de memoria (16-18) ──────────────────────────────────────────────
 
@@ -156,6 +157,24 @@ int64_t sys_waitpid(uint64_t pid) {
     return (int64_t)process_waitpid(pid);
 }
 
+// ─── Syscalls de semáforos (29-32) ────────────────────────────────────────────
+
+int64_t sys_sem_open(const char *name, uint64_t initial_value) {
+    return sem_open(name, initial_value);
+}
+
+int64_t sys_sem_wait(const char *name) {
+    return sem_wait(name);
+}
+
+int64_t sys_sem_post(const char *name) {
+    return sem_post(name);
+}
+
+int64_t sys_sem_close(const char *name) {
+    return sem_close(name);
+}
+
 // ─── Tabla de syscalls ────────────────────────────────────────────────────────
 
 void * syscalls[CANT_SYS] = {
@@ -188,4 +207,8 @@ void * syscalls[CANT_SYS] = {
     &sys_unblock,           // 26
     &sys_yield,             // 27
     &sys_waitpid,           // 28
+    &sys_sem_open,          // 29
+    &sys_sem_wait,          // 30
+    &sys_sem_post,          // 31
+    &sys_sem_close,         // 32
 };

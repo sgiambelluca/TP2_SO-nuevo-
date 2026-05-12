@@ -91,6 +91,10 @@ void     sys_block(uint64_t pid);
 void     sys_unblock(uint64_t pid);
 void     sys_yield(void);
 int64_t  sys_waitpid(uint64_t pid);
+int64_t  sys_sem_open(const char *name, uint64_t initial_value);
+int64_t  sys_sem_wait(const char *name);
+int64_t  sys_sem_post(const char *name);
+int64_t  sys_sem_close(const char *name);
 
 // ─── Utilitarios ─────────────────────────────────────────────────────────────
 uint64_t putchar(char c);

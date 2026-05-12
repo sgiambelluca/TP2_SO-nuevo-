@@ -7,6 +7,7 @@
 #include "process.h"
 #include "scheduler.h"
 #include "interrupts.h"
+#include "semaphore.h"
 
 #define HEAP_START  0x600000
 #define HEAP_SIZE   (8 * 1024 * 1024)  // 8 MB
@@ -29,10 +30,13 @@ static void idle_entry(int argc, char **argv) {
 }
 
 // Punto de entrada del kernel: arranca el scheduler (nunca retorna)
-int main(void) {
-    scheduler_start();
-    // Si scheduler_start retorna (no deberia), quedar en loop
-    while (1) _hlt();
+int main(void){
+    /* Si scheduler_start retorna quedar en loop. */ 
+    scheduler_start();  
+    while(1){
+        _hlt();
+    }
+    
     return 0;
 }
 
@@ -60,6 +64,7 @@ void * initializeKernelBinary(void){
 
     process_init();
     scheduler_init();
+    sem_init();
 
     // Crear proceso idle primero (siempre en la posicion 0 de la cola)
     process_create("idle", idle_entry, 0, NULL, 0);

@@ -1,142 +1,97 @@
-#include "../include/test_proc.h"
-#include "../include/userlib.h"
-#include "../include/shell.h"
+#include "include/test_proc.h"
+#include "include/syscall.h"
+#include "include/test_util.h"
+#include "include/userlib.h"
 
-#define TP_MAX 32
-#define TP_ROUNDS 3
+enum State { RUNNING, BLOCKED, KILLED };
 
-typedef enum { TP_RUNNING, TP_BLOCKED, TP_KILLED } TpState;
+typedef struct P_rq {
+    int32_t    pid;
+    enum State state;
+} p_rq;
 
-typedef struct {
-    int64_t pid;
-    TpState state;
-} TpEntry;
+static int64_t test_processes(uint64_t argc, char *argv[]) {
+    uint8_t  rq;
+    uint8_t  alive = 0;
+    uint8_t  action;
+    uint64_t max_processes;
+    char    *argvAux[] = {0};
 
-/* LCG simple para no depender de un generador externo. */
-static uint64_t rng_state = 0xCAFEBABE12345678ULL;
+    if (argc != 1)
+        return -1;
 
-static uint64_t my_rand(uint64_t mod){
-    rng_state = rng_state * 6364136223846793005ULL + 1442695040888963407ULL;
-    return (rng_state >> 33) % (mod == 0 ? 1 : mod);
-}
+    if ((max_processes = (uint64_t)satoi(argv[0])) == 0)
+        return -1;
 
-/* atoi minimo: lee digitos decimales hasta el primer no-digito. */
-static int parse_uint(const char *s){
-    if(s == 0) return -1;
-    int v = 0;
-    int i = 0;
-    while(s[i] == ' ') i++;
-    if(s[i] < '0' || s[i] > '9') return -1;
-    while(s[i] >= '0' && s[i] <= '9'){
-        v = v*10 + (s[i] - '0');
-        i++;
+    p_rq p_rqs[max_processes];
+
+    while (1) {
+
+        /* Crear max_processes procesos */
+        for (rq = 0; rq < max_processes; rq++) {
+            p_rqs[rq].pid = (int32_t)my_create_process("endless_loop", 0, argvAux);
+
+            if (p_rqs[rq].pid == -1) {
+                printf("test_processes: ERROR creando proceso\n");
+                return -1;
+            } else {
+                p_rqs[rq].state = RUNNING;
+                alive++;
+            }
+        }
+
+        /* Matar/bloquear/desbloquear al azar hasta que todos estén muertos */
+        while (alive > 0) {
+
+            for (rq = 0; rq < max_processes; rq++) {
+                action = (uint8_t)(GetUniform(100) % 2);
+
+                switch (action) {
+                    case 0:
+                        if (p_rqs[rq].state == RUNNING || p_rqs[rq].state == BLOCKED) {
+                            if (my_kill((uint64_t)p_rqs[rq].pid) == -1) {
+                                printf("test_processes: ERROR matando proceso\n");
+                                return -1;
+                            }
+                            p_rqs[rq].state = KILLED;
+                            my_wait(p_rqs[rq].pid);
+                            alive--;
+                        }
+                        break;
+
+                    case 1:
+                        if (p_rqs[rq].state == RUNNING) {
+                            if (my_block((uint64_t)p_rqs[rq].pid) == -1) {
+                                printf("test_processes: ERROR bloqueando proceso\n");
+                                return -1;
+                            }
+                            p_rqs[rq].state = BLOCKED;
+                        }
+                        break;
+                }
+            }
+
+            /* Desbloquear procesos al azar */
+            for (rq = 0; rq < max_processes; rq++) {
+                if (p_rqs[rq].state == BLOCKED && GetUniform(100) % 2) {
+                    if (my_unblock((uint64_t)p_rqs[rq].pid) == -1) {
+                        printf("test_processes: ERROR desbloqueando proceso\n");
+                        return -1;
+                    }
+                    p_rqs[rq].state = RUNNING;
+                }
+            }
+        }
     }
-    return v;
 }
 
-/* Proceso dummy: loopea para siempre quemando CPU. Solo muere por kill externo. */
-static void endless_loop(int argc, char **argv){
-    (void)argc; (void)argv;
-    while(1){
-        /* sin sys_yield: queremos que el scheduler lo desaloje por quantum */
-    }
-}
-
-void test_proc(void){
+/* Wrapper de shell: test_proc <max_processes> */
+void test_proc(void) {
     const char *args = cmd_args();
-    int max = parse_uint(args);
-    if(max <= 0 || max > TP_MAX){
-        shellPrintString("uso: test_proc <max_processes 1-");
-        char tmp[8];
-        num_to_str(TP_MAX, tmp, 10);
-        shellPrintString(tmp);
-        shellPrintString(">\n");
+    if (!args) {
+        shellPrintString("uso: test_proc <max_processes>\n");
         return;
     }
-
-    shellPrintString("test_proc: arrancando ");
-    char buf[16];
-    num_to_str((uint64_t)TP_ROUNDS, buf, 10);
-    shellPrintString(buf);
-    shellPrintString(" rondas con max=");
-    num_to_str((uint64_t)max, buf, 10);
-    shellPrintString(buf);
-    shellPrintString("\n");
-
-    TpEntry table[TP_MAX];
-    char *empty_argv[1] = { 0 };
-    int errors = 0;
-
-    for(int round = 0; round < TP_ROUNDS; round++){
-        /* Crear max procesos */
-        int created = 0;
-        for(int i = 0; i < max; i++){
-            int64_t pid = sys_create_process("endless", (void *)endless_loop,
-                                             0, empty_argv, 0);
-            if(pid < 0){
-                shellPrintString("test_proc: ERROR creando proceso\n");
-                errors++;
-                /* Detenerse en esta ronda; matar lo que haya. */
-                for(int j = 0; j < created; j++){
-                    sys_kill((uint64_t)table[j].pid);
-                }
-                goto done;
-            }
-            table[i].pid = pid;
-            table[i].state = TP_RUNNING;
-            created++;
-        }
-
-        /* Ciclo: matar/bloquear/desbloquear hasta que todos esten muertos. */
-        int alive = max;
-        int safety = 1000;  /* limite para no colgarse si algo sale mal */
-        while(alive > 0 && safety-- > 0){
-            for(int i = 0; i < max; i++){
-                uint64_t action = my_rand(2);
-                if(action == 0){
-                    /* kill */
-                    if(table[i].state == TP_RUNNING || table[i].state == TP_BLOCKED){
-                        sys_kill((uint64_t)table[i].pid);
-                        table[i].state = TP_KILLED;
-                        alive--;
-                    }
-                } else {
-                    /* block */
-                    if(table[i].state == TP_RUNNING){
-                        sys_block((uint64_t)table[i].pid);
-                        table[i].state = TP_BLOCKED;
-                    }
-                }
-            }
-            /* Desbloquear los que quedaron bloqueados. */
-            for(int i = 0; i < max; i++){
-                if(table[i].state == TP_BLOCKED){
-                    sys_unblock((uint64_t)table[i].pid);
-                    table[i].state = TP_RUNNING;
-                }
-            }
-            /* Ceder CPU para que los dummies corran un rato. */
-            sys_yield();
-        }
-
-        if(alive > 0){
-            shellPrintString("test_proc: ERROR no terminaron todos los procesos\n");
-            errors++;
-            for(int i = 0; i < max; i++){
-                if(table[i].state != TP_KILLED){
-                    sys_kill((uint64_t)table[i].pid);
-                }
-            }
-        }
-    }
-
-done:
-    if(errors == 0){
-        shellPrintString("test_proc: OK\n");
-    } else {
-        shellPrintString("test_proc: FAIL (");
-        num_to_str((uint64_t)errors, buf, 10);
-        shellPrintString(buf);
-        shellPrintString(" errores)\n");
-    }
+    char *argv[1] = {(char *)args};
+    test_processes(1, argv);
 }

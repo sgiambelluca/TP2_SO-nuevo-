@@ -4,6 +4,7 @@
 #include "../c/include/shell.h"
 #include "include/test_proc.h"
 #include "include/test_prio.h"
+#include "include/test_sync.h"
 
 static Command commands[] = {
     {"help", help},
@@ -21,6 +22,7 @@ static Command commands[] = {
     {"testMM", testMM},
     {"test_proc", test_proc},
     {"test_prio", test_prio},
+    {"test_sync", test_sync_cmd},
     {"ps", ps},
     {0, 0},
 };
@@ -348,10 +350,11 @@ void help(){
     shellPrintString("bmCPU     ->   benchmark de CPU.\n");
     shellPrintString("bmMEM     ->   benchmark de MEM.\n");
     shellPrintString("bmKEY     ->   benchmark de teclado.\n");
-    shellPrintString("testMM    ->   test del memory manager.\n");
-    shellPrintString("test_proc <max>     ->   test de procesos (crea, bloquea, mata dummies).\n");
-    shellPrintString("test_prio <target>  ->   test de prioridades (3 procesos vs misma/distinta prio).\n");
-    shellPrintString("ps        ->   lista de procesos activos.\n");
+    shellPrintString("testMM <max_memory>       ->   test del memory manager (loop infinito).\n");
+    shellPrintString("test_proc <max>           ->   test de procesos (loop infinito).\n");
+    shellPrintString("test_prio <target>        ->   test de prioridades (3 fases, termina solo).\n");
+    shellPrintString("test_sync <n> <use_sem>   ->   test de sincronizacion con semaforos.\n");
+    shellPrintString("ps                        ->   lista de procesos activos.\n");
 }
 
 // Limpia la pantalla

@@ -50,8 +50,8 @@ static void str_copy(char *dst, const char *src, int max){
 
 
 /* 
-** Construye el frame inicial del stack. Prepara el mecanismo para el context switching.
-**
+** Construye el frame inicial del stack. 
+** Prepara el mecanismo para el context switching.
 */
 static uint64_t* build_initial_stack(void *stack_top, ProcessEntry entry, int argc, char **argv){
     uint64_t* sp = (uint64_t *)stack_top;
@@ -288,9 +288,10 @@ void process_nice(uint64_t pid, uint8_t new_priority){
     
     p->priority = new_priority;
 
-    if(p->remaining_quanta > new_priority){
-        p->remaining_quanta = new_priority;
-    }
+    /* Actualizar remaining_quanta incondicionalmente: si se sube la prioridad el
+       proceso recibe un quantum completo en el proximo tick; si se baja, se corta
+       el quantum actual para que no supere la nueva prioridad. */
+    p->remaining_quanta = new_priority;
 }
 
 /* Espera a que un proceso hijo termine. */
