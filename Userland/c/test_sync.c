@@ -1,24 +1,21 @@
-#include "include/test_sync.h"
 #include "include/syscall.h"
 #include "include/test_util.h"
 #include "include/userlib.h"
 #include "include/shell.h"
 
-#define SEM_ID              "sem"
+#define SEM_ID               "sem"
 #define TOTAL_PAIR_PROCESSES 2
 
-static int64_t global; /* memoria compartida (mismo espacio de direcciones) */
+static int64_t global;
 
 static void slowInc(int64_t *p, int64_t inc) {
     int64_t aux = *p;
     if (GetUniform(100) < 30)
-        my_yield(); /* maximiza la probabilidad de condición de carrera */
+        my_yield();
     aux += inc;
     *p = aux;
 }
 
-/* Entry point del proceso worker.
-   argv[0] = n (iteraciones), argv[1] = inc (+1 o -1), argv[2] = use_sem */
 void my_process_inc(int argc, char *argv[]) {
     uint64_t n;
     int8_t   inc;
@@ -89,7 +86,6 @@ void test_sync_cmd(void) {
         return;
     }
 
-    /* Separar los dos argumentos */
     char buf[64];
     uint64_t i = 0;
     while (args[i] && i < 63) { buf[i] = args[i]; i++; }

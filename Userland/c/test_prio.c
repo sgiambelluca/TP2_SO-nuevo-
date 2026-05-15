@@ -1,4 +1,3 @@
-#include "include/test_prio.h"
 #include "include/syscall.h"
 #include "include/test_util.h"
 #include "include/userlib.h"
@@ -14,8 +13,6 @@ static int64_t prio[TOTAL_PROCESSES] = {LOWEST, MEDIUM, HIGHEST};
 
 static uint64_t max_value = 0;
 
-/* Proceso worker: cuenta de 0 a max_value e imprime su PID al terminar.
-   No-static para que el registro de syscall.c pueda referenciarla. */
 void zero_to_max(int argc, char *argv[]) {
     (void)argc; (void)argv;
     uint64_t value = 0;
@@ -35,7 +32,6 @@ static int64_t test_prio_internal(uint64_t argc, char *argv[]) {
     if ((max_value = (uint64_t)satoi(argv[0])) == 0)
         return -1;
 
-    /* ── Fase 1: misma prioridad ─────────────────────────────────────────── */
     printf("SAME PRIORITY...\n");
 
     for (i = 0; i < TOTAL_PROCESSES; i++)
@@ -44,7 +40,6 @@ static int64_t test_prio_internal(uint64_t argc, char *argv[]) {
     for (i = 0; i < TOTAL_PROCESSES; i++)
         my_wait(pids[i]);
 
-    /* ── Fase 2: prioridades distintas (asignadas después de crear) ──────── */
     printf("SAME PRIORITY, THEN CHANGE IT...\n");
 
     for (i = 0; i < TOTAL_PROCESSES; i++) {
@@ -56,7 +51,6 @@ static int64_t test_prio_internal(uint64_t argc, char *argv[]) {
     for (i = 0; i < TOTAL_PROCESSES; i++)
         my_wait(pids[i]);
 
-    /* ── Fase 3: prioridades distintas, asignadas mientras están bloqueados  */
     printf("SAME PRIORITY, THEN CHANGE IT WHILE BLOCKED...\n");
 
     for (i = 0; i < TOTAL_PROCESSES; i++) {
@@ -76,7 +70,7 @@ static int64_t test_prio_internal(uint64_t argc, char *argv[]) {
 }
 
 /* Wrapper de shell: test_prio <max_value> */
-void test_prio(void) {
+void test_prio_cmd(void) {
     const char *args = cmd_args();
     if (!args) {
         shellPrintString("uso: test_prio <max_value>\n");

@@ -2,10 +2,7 @@
 #include <stddef.h>
 #include "../c/include/userlib.h"
 #include "../c/include/shell.h"
-#include "include/testMM.h"
-#include "include/test_proc.h"
-#include "include/test_prio.h"
-#include "include/test_sync.h"
+#include "include/test_util.h"
 
 static Command commands[] = {
     {"help", help},
@@ -20,9 +17,9 @@ static Command commands[] = {
     {"bmCPU", bmCPU},
     {"bmMEM", bmMEM},
     {"bmKEY", bmKEY},
-    {"testMM", testMM},
-    {"test_proc", test_proc},
-    {"test_prio", test_prio},
+    {"test_mm", test_mm_cmd},
+    {"test_processes", test_processes_cmd},
+    {"test_prio", test_prio_cmd},
     {"test_sync", test_sync_cmd},
     {"ps", ps},
     {0, 0},
@@ -351,8 +348,8 @@ void help(){
     shellPrintString("bmCPU     ->   benchmark de CPU.\n");
     shellPrintString("bmMEM     ->   benchmark de MEM.\n");
     shellPrintString("bmKEY     ->   benchmark de teclado.\n");
-    shellPrintString("testMM <max_memory>       ->   test del memory manager (loop infinito).\n");
-    shellPrintString("test_proc <max>           ->   test de procesos (loop infinito).\n");
+    shellPrintString("test_mm <max_memory>      ->   test del memory manager (loop infinito).\n");
+    shellPrintString("test_processes <max>      ->   test de procesos (loop infinito).\n");
     shellPrintString("test_prio <target>        ->   test de prioridades (3 fases, termina solo).\n");
     shellPrintString("test_sync <n> <use_sem>   ->   test de sincronizacion con semaforos.\n");
     shellPrintString("ps                        ->   lista de procesos activos.\n");

@@ -15,7 +15,6 @@ uint32_t GetUint(void) {
     return (m_z << 16) + m_w;
 }
 
-/* Distribución uniforme en [0, max). Versión entera (sin x87). */
 uint32_t GetUniform(uint32_t max) {
     if (max == 0)
         return 0;

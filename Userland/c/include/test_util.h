@@ -11,6 +11,16 @@ void     bussy_wait(uint64_t n);
 void     endless_loop(int argc, char *argv[]);
 void     endless_loop_print(int argc, char *argv[]);
 
+/* Wrappers de shell para los tests */
+void     test_mm_cmd(void);
+void     test_processes_cmd(void);
+void     test_prio_cmd(void);
+void     test_sync_cmd(void);
+
+/* Entry points de procesos para el registry */
+void     zero_to_max(int argc, char *argv[]);
+void     my_process_inc(int argc, char *argv[]);
+
 /* Provisto por _loader.c */
 void    *memset(void *s, int32_t c, uint64_t n);
 
