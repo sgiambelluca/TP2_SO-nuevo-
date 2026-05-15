@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-MASS OS — a bare-metal x86-64 kernel (TP2 Sistemas Operativos, ITBA) that boots on QEMU/VirtualBox/real hardware via Pure64 + BMFS. Implements memory management, processes, scheduling, and syscalls from scratch.
+MASS OS — a bare-metal x86-64 kernel (TP2 Sistemas Operativos, ITBA) that boots on QEMU/VirtualBox/real hardware via Pure64 + BMFS. Implements memory management, processes, scheduling, semaphores, and syscalls from scratch.
 
 ## Build & run
 
@@ -30,6 +30,9 @@ There is no host-side test runner. The kernel ships a built-in test suite invoke
 ```
 testMM      # 5-test memory manager suite, expected: 20 OK / 0 FAIL
 ps          # list processes
+test_proc   # process creation/kill/waitpid tests
+test_prio   # scheduler priority tests
+test_sync   # semaphore/synchronization tests
 bmFPS / bmCPU / bmMEM / bmKEY  # benchmarks
 ```
 
@@ -54,7 +57,7 @@ The kernel heap lives at `0x600000` and is 8 MB (see `HEAP_START`/`HEAP_SIZE` in
 1. `loadModules` copies userland modules from end-of-kernel to their fixed load addresses.
 2. `clearBSS`, `load_idt`.
 3. `mm_init(HEAP_START, HEAP_SIZE)`.
-4. `process_init`, `scheduler_init`.
+4. `process_init`, `scheduler_init`, `sem_init`.
 5. Creates `idle` process (PID 0, just `hlt`s) and `shell` process (foreground, entry = `0x400000`).
 6. Returns; assembly then calls `main()` → `scheduler_start()` → `scheduler_start_asm` (loads first PCB's `rsp`, `popState`, `iretq` into userland).
 
@@ -73,13 +76,30 @@ Both expose `mm_init / mm_malloc / mm_malloc_kernel / mm_free / mm_status`. The 
 - `scheduler.c` — round-robin with priority-derived quanta. `scheduler_tick` is called from the timer IRQ (irq00) in `interrupts.asm`; cooperative yield via `int 0x80` with `force_switch`. Both handlers in `interrupts.asm` save/restore full register state on the process's stack and pass `rsp` to/from C.
 - The scheduler is the kernel's main loop — `scheduler_start_asm` is the only path that ever leaves the kernel into userland.
 
+### Semaphores
+
+`Kernel/c/semaphore.c` implements named semaphores (up to `MAX_SEMS = 32`) identified by string name. Each semaphore tracks a value and a circular wait queue of blocked PIDs. `sem_open` is reference-counted so multiple processes can share one by name. `sem_wait` calls `process_block` (which sets `force_switch`) so the current process blocks immediately; `sem_post` calls `process_unblock` to wake the next waiter.
+
 ### Syscalls
 
-`Kernel/include/syscallDispatcher.h` lists all 29 syscalls (`CANT_SYS = 29` in `defs.h`). Dispatched via `int 0x80` through `syscalls[]` table in `syscallDispatcher.c`. Userland calls them via `Userland/asm/userlib.asm` wrappers and `Userland/c/userlib.c` C wrappers. Adding a syscall requires: bumping `CANT_SYS`, writing the `sys_*` function, adding it to the dispatcher table, and exposing a wrapper in `userlib`.
+`Kernel/include/syscallDispatcher.h` lists all 33 syscalls (`CANT_SYS = 33` in `defs.h`), grouped:
+- 0–18: I/O, video, memory (`sys_write`, `sys_read`, `sys_malloc`, `sys_free`, `sys_mem_status`, …)
+- 19–28: processes (`sys_create_process`, `sys_exit`, `sys_getpid`, `sys_ps`, `sys_kill`, `sys_nice`, `sys_block`, `sys_unblock`, `sys_yield`, `sys_waitpid`)
+- 29–32: semaphores (`sys_sem_open`, `sys_sem_wait`, `sys_sem_post`, `sys_sem_close`)
+
+Dispatched via `int 0x80` through `syscalls[]` table in `syscallDispatcher.c`. Userland calls them via `Userland/asm/userlib.asm` wrappers and `Userland/c/userlib.c` C wrappers. Adding a syscall requires: bumping `CANT_SYS`, writing the `sys_*` function, adding it to the dispatcher table, and exposing a wrapper in `userlib`.
+
+**Important:** `sys_read` is non-blocking at the low level — it returns 0 immediately if no key is ready. The `getchar()` wrapper in `userlib.c` busy-waits (yields between attempts) to provide blocking semantics.
 
 ### Userland linkage
 
-Userland code is freestanding and links against only `userlib` — no libc. Each user "program" is built as a flat binary loaded at a fixed address, with `_loader.c` calling `main`. Currently only the shell exists as a real user binary; `testMM` and other shell commands run **in-process inside the shell** (same address space as the shell's userland module), not as separate processes — they call into shared userland helpers via direct function calls plus syscalls.
+Userland code is freestanding and links against only `userlib` — no libc. Each user "program" is built as a flat binary loaded at a fixed address, with `_loader.c` calling `main`. Currently only the shell exists as a real user binary; `testMM`, `test_proc`, `test_prio`, `test_sync`, and other shell commands run **in-process inside the shell** (same address space as the shell's userland module), not as separate processes.
+
+`Userland/c/include/syscall.h` exposes a `my_*` interface (`my_getpid`, `my_create_process`, `my_nice`, `my_kill`, `my_block`, `my_unblock`, `my_yield`, `my_wait`, `my_sem_*`) mirroring the cátedra's test-file API, plus `#define malloc/free` shims over `sys_malloc/sys_free`. Shell commands are registered in `userlib.c` in the `commands[]` array and dispatched by `processLine`.
+
+### Drivers
+
+`Kernel/c/drivers/` contains `keyboardDriver.c` (scancode→ASCII mapping, shift/caps, keyboard buffer) and `videoDriver.c` (framebuffer text rendering with font scaling). Both are compiled as part of the kernel but have no special linkage — they are just C files included by the wildcard `$(wildcard c/*.c c/drivers/*.c)` in `Kernel/Makefile`.
 
 ## Conventions
 

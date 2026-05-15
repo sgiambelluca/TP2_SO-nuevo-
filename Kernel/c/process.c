@@ -35,9 +35,12 @@ static void str_copy(char *dst, const char *src, int max){
 
 // ─── stack frame inicial ──────────────────────────────────────────────────────
 //
-// Layout del stack tras una interrupcion en este kernel (ring 0):
+// Layout del stack tras una interrupcion en long mode. La CPU pushea SIEMPRE
+// 5 qwords (SS, RSP, RFLAGS, CS, RIP), incluso sin cambio de privilegio:
 //
-//   [rsp+17*8] RFLAGS          <- empujado por CPU (parte alta del frame)
+//   [rsp+19*8] SS              <- empujado por CPU (parte alta del frame)
+//   [rsp+18*8] RSP
+//   [rsp+17*8] RFLAGS
 //   [rsp+16*8] CS
 //   [rsp+15*8] RIP
 //   [rsp+14*8] RAX  (primero en pushState)
@@ -56,11 +59,13 @@ static void str_copy(char *dst, const char *src, int max){
 static uint64_t* build_initial_stack(void *stack_top, ProcessEntry entry, int argc, char **argv){
     uint64_t* sp = (uint64_t *)stack_top;
 
-    /* Hardware frame. Instruccion iretq espera encontrar estos valores
-    ** cuando retorna de una interrupcion o excepcion. */
+    /* Hardware frame. En long mode (IA-32e), iretq SIEMPRE pop-ea las 5 qwords
+    ** (SS, RSP, RFLAGS, CS, RIP) sin importar si hay cambio de privilegio. */
+    *(--sp) = 0;                   /* SS */
+    *(--sp) = (uint64_t)stack_top; /* RSP: tope del stack del proceso */
     *(--sp) = 0x202;               /* RFLAGS: Interrupt Flag = 1 */
-    *(--sp) = 0x08;                /* CS: segmento de codigo del kernel */ 
-    *(--sp) = (uint64_t)entry;     /* RIP: punto de entrada. Asegura que iretq transiciona al segmento de codigo correcto. */
+    *(--sp) = 0x08;                /* CS: segmento de codigo del kernel */
+    *(--sp) = (uint64_t)entry;     /* RIP: punto de entrada */
     
 
     /* Registros General Purpose en orden de pushState */
