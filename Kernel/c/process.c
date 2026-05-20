@@ -2,6 +2,7 @@
 #include "scheduler.h"
 #include "memoryManager.h"
 #include "lib.h"
+#include "interrupts.h"
 #include <stddef.h>
 
 /* Tabla de procesos del Kernel. */
@@ -56,6 +57,27 @@ static void str_copy(char *dst, const char *src, int max){
 ** Construye el frame inicial del stack. 
 ** Prepara el mecanismo para el context switching.
 */
+static void process_trampoline(int argc, char **argv){
+    PCB* cur = process_current();
+    if(cur != NULL && cur->entry != NULL){
+        cur->entry(argc, argv);
+    }
+
+    /* Si el entry retorna, salir via syscall para forzar cambio de contexto. */
+    __asm__ __volatile__(
+        "movq $20, %%rax\n"
+        "movq $0, %%rdi\n"
+        "int $0x80\n"
+        :
+        :
+        : "rax", "rdi"
+    );
+
+    while(1){
+        _hlt();
+    }
+}
+
 static uint64_t* build_initial_stack(void *stack_top, ProcessEntry entry, int argc, char **argv){
     uint64_t* sp = (uint64_t *)stack_top;
 
@@ -183,7 +205,7 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
 
     /* Construir frame inicial. */ 
     void* stack_top = (void*)((uint8_t *)p->stack_base + STACK_SIZE);
-    p->rsp = build_initial_stack(stack_top, entry, argc, (char **)argv_copy);
+    p->rsp = build_initial_stack(stack_top, process_trampoline, argc, (char **)argv_copy);
 
     /* Rellenar PCB */ 
     p->pid = ++next_pid;
@@ -197,7 +219,8 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
     p->waiting_for = 0;     /* Indica si se esta esperando a otro proceso. Sirve para que el scheduler sepa cuando desbloquearlo. */
     p->argc = argc;         
     p->argv = argv_copy;    /* Memoria kernel (se libera en process_exit/kill) */
-    p->retval = 0; 
+    p->retval = 0;
+    p->entry = entry;
 
     str_copy(p->name, name, MAX_NAME_LEN);
     

@@ -25,6 +25,7 @@ typedef void (*ProcessEntry)(int argc, char **argv);
 typedef struct PCB{
     uint64_t pid;               /* PID del proceso */
     char name[MAX_NAME_LEN];    /* Nombre del proceso. */
+    ProcessEntry entry;         /* Punto de entrada real del proceso. */
     uint8_t priority;           /* Prioridad del proceso (1-5). */
     uint8_t remaining_quanta;   /* Cuanta restante en el quantum actual. */
     ProcessState state;         /* Estado del proceso. */

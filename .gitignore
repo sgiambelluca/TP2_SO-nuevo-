@@ -14,8 +14,8 @@
 
 #Docs
 *.pdf
-
-.gemini/
+CLAUDE.md
+AGENTS.md
 gha-creds-*.json
 
 #ide
