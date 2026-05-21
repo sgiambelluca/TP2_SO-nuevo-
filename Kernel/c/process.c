@@ -3,6 +3,7 @@
 #include "memoryManager.h"
 #include "lib.h"
 #include "interrupts.h"
+#include "fd.h"
 #include <stddef.h>
 
 /* Tabla de procesos del Kernel. */
@@ -32,6 +33,20 @@ static void str_copy(char *dst, const char *src, int max){
     }
     
     dst[i] = '\0';
+}
+
+static void process_release_fds(PCB *p){
+    if(p == NULL){
+        return;
+    }
+    if(p->fd[0] >= 0){
+        fd_decref((uint64_t)p->fd[0]);
+    }
+    if(p->fd[1] >= 0){
+        fd_decref((uint64_t)p->fd[1]);
+    }
+    p->fd[0] = -1;
+    p->fd[1] = -1;
 }
 
 // ─── stack frame inicial ──────────────────────────────────────────────────────
@@ -213,8 +228,10 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
     p->remaining_quanta = DEFAULT_PRIORITY;
     p->state = PROCESS_READY;
     p->foreground = fg;     /* flag para indicar si el proceso es de primer plano. */
-    p->fd[0] = 0;           /* stdin */
-    p->fd[1] = 1;           /* stdout */
+    p->fd[0] = FD_STDIN;
+    p->fd[1] = FD_STDOUT;
+    fd_incref((uint64_t)p->fd[0]);
+    fd_incref((uint64_t)p->fd[1]);
     p->parent_pid = ((current_process != NULL) ? (current_process->pid) : 0);
     p->waiting_for = 0;     /* Indica si se esta esperando a otro proceso. Sirve para que el scheduler sepa cuando desbloquearlo. */
     p->argc = argc;         
@@ -244,6 +261,7 @@ void process_exit(int retval){
     /* El proceso finalizo su ejecucion pero no ha sido removido de la tabla de procesos.*/
     current_process->state = PROCESS_ZOMBIE;
     //zerebrozzzz
+    process_release_fds(current_process);
 
     /* Despertar al padre si esta bloqueado en waitpid esperando este proceso. */
     PCB* parent = process_get(current_process->parent_pid);
@@ -289,6 +307,7 @@ void process_kill(uint64_t pid){
     if(p == current_process){
         /* Se quiere matar el mismo. */
         current_process->state = PROCESS_ZOMBIE;
+        process_release_fds(current_process);
         mm_free(current_process->stack_base);
         current_process->stack_base = NULL;
         if(current_process->argv != NULL){
@@ -304,6 +323,7 @@ void process_kill(uint64_t pid){
         ** Entonces no hay riesgo si hago scheduler_remove y libero el slot del proceso.
         */ 
         scheduler_remove(p);
+        process_release_fds(p);
         if(p->stack_base != NULL){
             mm_free(p->stack_base);
             p->stack_base = NULL;

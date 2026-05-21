@@ -8,6 +8,7 @@
 #include "scheduler.h"
 #include "interrupts.h"
 #include "semaphore.h"
+#include "fd.h"
 
 #define HEAP_START  0x600000
 #define HEAP_SIZE   (8 * 1024 * 1024)  // 8 MB
@@ -63,6 +64,7 @@ void * initializeKernelBinary(void){
     mm_init((void *)HEAP_START, HEAP_SIZE);
 
     process_init();
+    fd_init();
     scheduler_init();
     sem_init();
 

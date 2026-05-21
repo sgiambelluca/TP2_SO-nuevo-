@@ -9,6 +9,7 @@
 #include "process.h"
 #include "scheduler.h"
 #include "semaphore.h"
+#include "fd.h"
 
 // ─── Syscalls de memoria (16-18) ──────────────────────────────────────────────
 
@@ -38,28 +39,23 @@ void sys_clear(void){
 }
 
 uint64_t sys_write(uint64_t fd, const char * buff, uint64_t count){
-    (void)fd;
-    uint32_t color = 0xFFFFFF;
-    for(uint64_t i = 0; i < count; i++){
-        videoPutChar((uint8_t)buff[i], color);
+    PCB *cur = process_current();
+    if(cur == NULL || fd > FD_STDOUT){
+        return 0;
     }
-    return count;
+    FD *d = fd_get((uint64_t)cur->fd[fd]);
+    return fd_write(d, buff, count, cur);
 }
 
 // sys_read: solo el proceso foreground puede leer del teclado.
 // Si no es foreground o no hay tecla, retorna 0.
 uint64_t sys_read(char * buff, uint64_t count){
     PCB *cur = process_current();
-    if(cur == NULL || !cur->foreground){
-        return 0;  /* Solo foreground puede leer */
+    if(cur == NULL){
+        return 0;
     }
-    uint64_t n = readKeyBuff(buff, count);
-    if (n == 0) {
-        kbd_set_waiting(cur);
-        cur->state = PROCESS_BLOCKED;
-        force_switch = 1;
-    }
-    return n;
+    FD *d = fd_get((uint64_t)cur->fd[0]);
+    return fd_read(d, buff, count, cur);
 }
 
 void sys_date(uint8_t * buff){
