@@ -14,7 +14,6 @@
 
 #Docs
 *.pdf
-CLAUDE.md
 AGENTS.md
 gha-creds-*.json
 

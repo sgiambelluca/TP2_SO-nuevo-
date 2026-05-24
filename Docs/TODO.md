@@ -164,12 +164,12 @@ Ya se implementaron: kernel 64-bit, IDT/IRQs, driver de video (framebuffer VBE),
 - [ ] `sys_pipe_open(name)` crea si no existe, abre si ya existe.
 
 ### 4.4 Syscalls de pipes
-- [ ] `sys_pipe(fd_array[2])` — crea pipe anonimo, devuelve fd[0]=lector, fd[1]=escritor en el proceso que llama.
+- [x] `sys_pipe(fd_array[2])` — crea pipe anonimo, devuelve fd[0]=lector, fd[1]=escritor en el proceso que llama.
 - [ ] `sys_pipe_open(name)` — crea o abre pipe nombrado, devuelve fd de lectura y escritura.
-- [ ] `sys_dup2(old_fd, new_fd)` — redirige un FD (usado por la shell para conectar pipes: `dup2(pipe_write, 1)` en el hijo-escritor, `dup2(pipe_read, 0)` en el hijo-lector).
-- [ ] `sys_close(fd)` — cierra un file descriptor (decrementar contador de extremos del pipe).
-- [ ] Wrappers en `Userland/asm/userlib.asm` y `Userland/c/userlib.c`.
-- [ ] Actualizar `CANT_SYS` en `defs.h` y la tabla `syscalls[]` en `syscallDispatcher.c`.
+- [x] `sys_dup2(old_fd, new_fd)` — redirige un FD (usado por la shell para conectar pipes: `dup2(pipe_write, 1)` en el hijo-escritor, `dup2(pipe_read, 0)` en el hijo-lector).
+- [x] `sys_close(fd)` — cierra un file descriptor (decrementar contador de extremos del pipe).
+- [x] Wrappers en `Userland/asm/userlib.asm` y `Userland/c/userlib.c`.
+- [x] Actualizar `CANT_SYS` en `defs.h` y la tabla `syscalls[]` en `syscallDispatcher.c`.
 
 ---
 
@@ -273,9 +273,9 @@ Todos deben poder correrse en **foreground y background**. Son los mismos archiv
 [HECHO] Paso 4.1-4.2    Paso 5.2 (comandos simples: help, mem, ps, loop, kill, nice, block)
 (Pipes + FDs)            |
     |                |
-Paso 4.3-4.4    Paso 5.4 (tests como procesos — no necesitan pipes)
+Paso 4.3         Paso 5.4 (tests como procesos — no necesitan pipes)
 (Named pipes +      |
- dup2/close)        |
+ sys_pipe_open)     |
     |                |
     +-------+--------+
            |
@@ -287,7 +287,6 @@ Paso 4.3-4.4    Paso 5.4 (tests como procesos — no necesitan pipes)
 ```
 
 **Prioridad inmediata:**
-1. **Paso 4.4 (syscalls de pipes: sys_pipe / sys_pipe_open / sys_dup2 / sys_close)** — conecta el kernel con userland.
-2. **Paso 4.3 (pipes con nombre)** — necesario para IPC entre procesos no relacionados.
-3. **Paso 5.1 (shell con & | Ctrl+C | Ctrl+D)** — para demostrar foreground/background y manejo de señales.
-4. **Paso 5.3 (cat, wc, filter, mvar)** — depende de pipes funcionando en userland.
+1. **Paso 4.3 (pipes con nombre + sys_pipe_open)** — necesario para IPC entre procesos no relacionados.
+2. **Paso 5.1 (shell con & | Ctrl+C | Ctrl+D)** — para demostrar foreground/background y manejo de señales.
+3. **Paso 5.3 (cat, wc, filter, mvar)** — depende de pipes funcionando en userland.
