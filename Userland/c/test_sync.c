@@ -117,7 +117,7 @@ static int64_t test_sync_internal(uint64_t argc, char *argv[]){
         my_wait((int64_t)pids[i + TOTAL_PAIR_PROCESSES]);
     }
 
-    /* Con semáforos el valor final debe ser 0; sin ellos suele variar. */
+    /* Con semáforos el valor final debe ser 0; sin ellos el valor suele variar. */
     printf("Valor final: %d\n", (int)global);
 
     return 0;
