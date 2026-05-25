@@ -3,30 +3,38 @@
 #include "include/test_util.h"
 #include <stdint.h>
 
-/* ── Registro de funciones por nombre ───────────────────────────────────── */
-
+/* Entrada en el registro de procesos. */
 typedef struct {
     const char *name;
-    void       *fn;
+    void *fn;
 } ProcEntry;
 
+/* Funcion para comparar cadenas de caracteres. */
 static int str_eq(const char *a, const char *b) {
-    if (!a || !b) return 0;
-    while (*a && (*a == *b)) { a++; b++; }
-    return (unsigned char)*a == (unsigned char)*b;
+    if(!a || !b){
+        return 0;
+    }
+
+    while((*a && (*a == *b))){ 
+        a++; 
+        b++; 
+    }
+
+    return ((unsigned char)*a == (unsigned char)*b);
 }
 
+/* Registro de procesos disponibles. */
 static ProcEntry registry[] = {
-    {"endless_loop",       (void *)endless_loop},
+    {"endless_loop", (void *)endless_loop},
     {"endless_loop_print", (void *)endless_loop_print},
-    {"zero_to_max",        (void *)zero_to_max},
-    {"my_process_inc",     (void *)my_process_inc},
-    {"test_mm",            (void *)test_mm_entry},
-    {"test_processes",     (void *)test_processes_entry},
-    {"test_prio",          (void *)test_prio_entry},
-    {"test_sync",          (void *)test_sync_entry},
-    {"np_writer",          (void *)np_writer_entry},
-    {"np_reader",          (void *)np_reader_entry},
+    {"zero_to_max", (void *)zero_to_max},
+    {"my_process_inc", (void *)my_process_inc},
+    {"test_mm", (void *)test_mm_entry},
+    {"test_processes", (void *)test_processes_entry},
+    {"test_prio", (void *)test_prio_entry},
+    {"test_sync", (void *)test_sync_entry},
+    {"np_writer", (void *)np_writer_entry},
+    {"np_reader", (void *)np_reader_entry},
     {0, 0}
 };
 

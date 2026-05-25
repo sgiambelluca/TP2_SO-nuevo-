@@ -6,13 +6,18 @@
 #include "scheduler.h"
 #include "pipe.h"
 
+/* Codigo de retorno para indicar que la lectura bloqueo al proceso. */
 #define READ_BLOCKED ((uint64_t)-1)
 
+/* Numero maximo de descriptores de archivo globales.
+** Peor caso en donde todos los procesos tienen 2 pipes abiertos. */
 #define MAX_FDS (MAX_PROCESSES * 2 + 2)
 
+/* Tabla global de FDs. Cada entrada puede apuntar a terminal o pipe. */
 static FD fd_table[MAX_FDS];
 
-static int fd_alloc(FDType type, void *data){
+/* Busca un slot libre en la tabla y asigna tipo y data. */
+static int fd_alloc(FDType type, void* data){
     for(uint64_t i = 0; i < MAX_FDS; i++){
         if(fd_table[i].type == FD_NONE){
             fd_table[i].type = type;
@@ -21,9 +26,11 @@ static int fd_alloc(FDType type, void *data){
             return (int)i;
         }
     }
-    return -1;
+    
+    return -1;  /* No hay slots libres. */
 }
 
+/* Inicializa la tabla de FDs y reserva stdin/stdout como terminal. */
 void fd_init(void){
     for(uint64_t i = 0; i < MAX_FDS; i++){
         fd_table[i].type = FD_NONE;
@@ -31,53 +38,79 @@ void fd_init(void){
         fd_table[i].data = NULL;
     }
 
+    /* Reservar stdin y stdout como terminales. */
     fd_table[FD_STDIN].type = FD_TERMINAL;
     fd_table[FD_STDOUT].type = FD_TERMINAL;
 }
 
-FD *fd_get(uint64_t fd){
+/* Devuelve el FD si existe y es valido; NULL si no. */
+FD* fd_get(uint64_t fd){
     if(fd >= MAX_FDS){
         return NULL;
     }
+
     if(fd_table[fd].type == FD_NONE){
         return NULL;
     }
+
     return &fd_table[fd];
 }
 
+/* Incrementa refcount y notifica a la implementacion del pipe. */
 void fd_incref(uint64_t fd){
-    FD *d = fd_get(fd);
+
+    FD* d = fd_get(fd);
+
     if(d == NULL){
         return;
     }
+
+    /* Incrementar el contador de referencias. */
     d->refcount++;
+
     if(d->type == FD_PIPE_READ){
         pipe_open_read((Pipe *)d->data);
-    } else if(d->type == FD_PIPE_WRITE){
-        pipe_open_write((Pipe *)d->data);
+    } else{
+        if(d->type == FD_PIPE_WRITE){
+            pipe_open_write((Pipe *)d->data);
+        }
     }
 }
 
+/* Decrementa refcount, notifica al pipe y libera slot si corresponde. */
 void fd_decref(uint64_t fd){
-    FD *d = fd_get(fd);
+    FD* d = fd_get(fd);
+    
     if(d == NULL){
         return;
     }
+    
     if(d->refcount > 0){
         d->refcount--;
     }
+    
     if(d->type == FD_PIPE_READ){
         pipe_close_read((Pipe *)d->data);
-    } else if(d->type == FD_PIPE_WRITE){
-        pipe_close_write((Pipe *)d->data);
+    }else{
+        if(d->type == FD_PIPE_WRITE){
+            pipe_close_write((Pipe *)d->data);
+        }
     }
-    if(d->refcount == 0 && d->type != FD_TERMINAL){
+
+    /* Liberar slot si no hay referencias y no es un terminal. */
+    if((d->refcount == 0) && (d->type != FD_TERMINAL)){
         d->type = FD_NONE;
         d->data = NULL;
     }
 }
 
-uint64_t fd_read(FD *d, char *buf, uint64_t count, struct PCB *cur){
+/*
+ * Lee desde un FD.
+ * Terminal: solo si el proceso es foreground; si no hay input, bloquea.
+ * Pipe: delega en pipe_read.
+ */
+uint64_t fd_read(FD* d, char* buf, uint64_t count, struct PCB* cur){
+
     if(d == NULL || buf == NULL || count == 0){
         return 0;
     }
@@ -87,15 +120,27 @@ uint64_t fd_read(FD *d, char *buf, uint64_t count, struct PCB *cur){
             if(cur == NULL || !cur->foreground){
                 return 0;
             }
+
+            /* Leer del buffer de teclado. */
             uint64_t n = readKeyBuff(buf, count);
+
+            /* Lectura bloqueante. */
             if(n == 0){
+            
+                /* Bloquea el proceso actual y lo notifica cuando haya datos disponibles. */
                 kbd_set_waiting(cur);
                 cur->state = PROCESS_BLOCKED;
+
+                /* Forzar cambio de contexto para que se ejecute otro proceso. */
                 force_switch = 1;
+
+                /* Indica que la lectura bloqueó al proceso. */
                 return READ_BLOCKED;
             }
+
             return n;
         }
+
         case FD_PIPE_READ:
             return pipe_read((Pipe *)d->data, buf, count);
         default:
@@ -103,8 +148,14 @@ uint64_t fd_read(FD *d, char *buf, uint64_t count, struct PCB *cur){
     }
 }
 
-uint64_t fd_write(FD *d, const char *buf, uint64_t count, struct PCB *cur){
+/*
+ * Escribe en un FD.
+ * Terminal: imprime cada caracter.
+ * Pipe: delega en pipe_write.
+ */
+uint64_t fd_write(FD* d, const char* buf, uint64_t count, struct PCB* cur){
     (void)cur;
+
     if(d == NULL || buf == NULL || count == 0){
         return 0;
     }
@@ -112,11 +163,14 @@ uint64_t fd_write(FD *d, const char *buf, uint64_t count, struct PCB *cur){
     switch(d->type){
         case FD_TERMINAL: {
             uint32_t color = 0xFFFFFF;
+            
             for(uint64_t i = 0; i < count; i++){
                 videoPutChar((uint8_t)buf[i], color);
             }
+
             return count;
         }
+
         case FD_PIPE_WRITE:
             return pipe_write((Pipe *)d->data, buf, count);
         default:
@@ -124,6 +178,10 @@ uint64_t fd_write(FD *d, const char *buf, uint64_t count, struct PCB *cur){
     }
 }
 
+/*
+ * Crea un FD asociado a un pipe ya existente.
+ * write_end=1 crea FD de escritura; 0 crea FD de lectura.
+ */
 int fd_create_pipe(struct Pipe *p, int write_end){
     if(p == NULL){
         return -1;
