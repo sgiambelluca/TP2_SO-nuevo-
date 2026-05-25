@@ -110,6 +110,6 @@ void test_processes_cmd(void) {
 }
 
 /* Entry point para ser spawneado como proceso hijo */
-int64_t test_processes_entry(int argc, char *argv[]) {
+int64_t test_processes_entry(int argc, char *argv[]){
     return test_processes_internal((uint64_t)argc, argv);
 }
