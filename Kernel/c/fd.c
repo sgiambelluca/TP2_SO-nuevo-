@@ -163,7 +163,7 @@ uint64_t fd_write(FD* d, const char* buf, uint64_t count, struct PCB* cur){
     switch(d->type){
         case FD_TERMINAL: {
             uint32_t color = 0xFFFFFF;
-            
+
             for(uint64_t i = 0; i < count; i++){
                 videoPutChar((uint8_t)buf[i], color);
             }
@@ -189,9 +189,11 @@ int fd_create_pipe(struct Pipe *p, int write_end){
 
     FDType type = write_end ? FD_PIPE_WRITE : FD_PIPE_READ;
     int fd = fd_alloc(type, p);
+    
     if(fd < 0){
         return -1;
     }
+
     fd_incref((uint64_t)fd);
     return fd;
 }
