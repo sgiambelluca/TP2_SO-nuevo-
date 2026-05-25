@@ -2,6 +2,7 @@
 #include "userlib.h"
 
 static int cursorVisible = 0;
+
 static void showCursor(void){
     if(!cursorVisible){
         char cursor = CURSOR;

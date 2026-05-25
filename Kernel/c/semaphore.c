@@ -106,7 +106,7 @@ void sem_init(void){
             sem_table[i].wait_queue[j] = 0;
         }
     }
-}
+} 
 
 /* Abre (o crea) un semáforo por nombre. Retorna 1 en éxito, 0 si tabla llena. */
 int64_t sem_open(const char* name, uint64_t initial_value){

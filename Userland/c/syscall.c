@@ -30,7 +30,7 @@ static ProcEntry registry[] = {
     {0, 0}
 };
 
-/* ── Wrappers my_* ───────────────────────────────────────────────────────── */
+/* Wrappers para tests. */
 
 int64_t my_getpid(void) {
     return (int64_t)sys_getpid();

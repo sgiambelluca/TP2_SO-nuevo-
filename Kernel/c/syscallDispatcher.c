@@ -175,8 +175,6 @@ int64_t sys_waitpid(uint64_t pid) {
     return (int64_t)process_waitpid(pid);
 }
 
-// ─── Syscalls de semáforos (29-32) ────────────────────────────────────────────
-
 int64_t sys_sem_open(const char *name, uint64_t initial_value) {
     return sem_open(name, initial_value);
 }
@@ -192,8 +190,6 @@ int64_t sys_sem_post(const char *name) {
 int64_t sys_sem_close(const char *name) {
     return sem_close(name);
 }
-
-// ─── Syscalls de pipes (33-36) ────────────────────────────────────────────────
 
 int64_t sys_pipe(uint64_t fd_array){
     if(fd_array == 0){
@@ -283,8 +279,7 @@ int64_t sys_pipe_open(uint64_t name, uint64_t fd_array){
     return 0;
 }
 
-// ─── Tabla de syscalls ────────────────────────────────────────────────────────
-
+/* Tabla de syscalls */
 void * syscalls[CANT_SYS] = {
     &sys_registers,         // 0
     &sys_time,              // 1
