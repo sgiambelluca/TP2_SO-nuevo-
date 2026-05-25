@@ -1,5 +1,6 @@
 // API userland: wrappers de syscalls y utilitarios minimos.
-// sys_read es NO bloqueante en nivel bajo; getchar() bloquea.
+// sys_read(fd, buf, count): retorna READ_BLOCKED (-1) si bloquea, 0 si EOF, >0 si leyo bytes.
+// getchar() bloquea hasta que haya una tecla disponible.
 // Redraw buffer registra salida para re-render al cambiar tamaño de fuente.
 #ifndef USERLIB_H
 #define USERLIB_H
@@ -58,7 +59,7 @@ void redraw_append_char(char c, uint64_t fd);
 
 // ─── Syscalls de IO ───────────────────────────────────────────────────────────
 uint64_t sys_write(uint64_t fd, const char * buff, uint64_t count);
-uint64_t sys_read(char * buff, uint64_t count);
+uint64_t sys_read(uint64_t fd, char * buff, uint64_t count);
 uint64_t sys_registers(char * buff);
 void sys_time(uint8_t * buff);
 void sys_date(uint8_t * buff);
@@ -97,6 +98,7 @@ int64_t  sys_sem_post(const char *name);
 int64_t  sys_sem_close(const char *name);
 int64_t  sys_pipe(int fds[2]);
 int64_t  sys_dup2(uint64_t old_fd, uint64_t new_fd);
+int64_t  sys_pipe_open(const char *name, int fds[2]);
 int64_t  sys_close(uint64_t fd);
 
 // ─── Utilitarios ─────────────────────────────────────────────────────────────

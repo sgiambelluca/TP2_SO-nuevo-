@@ -56,7 +56,23 @@ fi
 # adentro y el build usaría una versión obsoleta del código sin avisar.
 CONTAINER_MOUNT="$(docker inspect "${NAME}" \
 	--format '{{range .Mounts}}{{if eq .Destination "/root"}}{{.Source}}{{end}}{{end}}')"
-if [ "${CONTAINER_MOUNT}" != "${PWD}" ]; then
+# En Docker Desktop (Windows/WSL), PWD puede ser un path de bind-mount
+# diferente al path Windows usado al crear el contenedor. Verificamos que
+# ambos apunten al mismo directorio comparando el contenido de /root.
+MOUNT_OK=false
+if [ "${CONTAINER_MOUNT}" = "${PWD}" ]; then
+	MOUNT_OK=true
+else
+	# Verificación alternativa: comparar un archivo marca dentro del contenedor.
+	MARKER=".compile_mount_check_$$"
+	touch "${MARKER}" 2>/dev/null || true
+	if docker exec -u root "${NAME}" test -f "/root/${MARKER}" 2>/dev/null; then
+		MOUNT_OK=true
+		rm -f "${MARKER}"
+	fi
+	rm -f "${MARKER}"
+fi
+if [ "${MOUNT_OK}" != "true" ]; then
 	echo "Error: el contenedor '${NAME}' monta '${CONTAINER_MOUNT}' en /root," >&2
 	echo "pero el directorio actual es '${PWD}'." >&2
 	echo "Los cambios locales no serán visibles para el contenedor." >&2

@@ -6,6 +6,8 @@
 #include "scheduler.h"
 #include "pipe.h"
 
+#define READ_BLOCKED ((uint64_t)-1)
+
 #define MAX_FDS (MAX_PROCESSES * 2 + 2)
 
 static FD fd_table[MAX_FDS];
@@ -90,6 +92,7 @@ uint64_t fd_read(FD *d, char *buf, uint64_t count, struct PCB *cur){
                 kbd_set_waiting(cur);
                 cur->state = PROCESS_BLOCKED;
                 force_switch = 1;
+                return READ_BLOCKED;
             }
             return n;
         }

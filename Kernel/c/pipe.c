@@ -19,6 +19,10 @@ typedef struct Pipe {
     int wait_w_tail;
     int wait_w_count;
     int in_use;
+    int is_named;
+    int eof;
+    uint64_t opens;
+    char name[PIPE_NAME_LEN];
 } Pipe;
 
 static Pipe pipe_table[MAX_PIPES];
@@ -77,6 +81,10 @@ static void pipe_reset(Pipe *p){
     p->wait_w_head = 0;
     p->wait_w_tail = 0;
     p->wait_w_count = 0;
+    p->is_named = 0;
+    p->eof = 0;
+    p->opens = 0;
+    p->name[0] = '\0';
 }
 
 static void pipe_maybe_free(Pipe *p){
@@ -102,11 +110,47 @@ Pipe *pipe_alloc(void){
     return NULL;
 }
 
+Pipe *pipe_open_named(const char *name){
+    if(name == NULL){
+        return NULL;
+    }
+
+    for(int i = 0; i < MAX_PIPES; i++){
+        if(pipe_table[i].in_use && pipe_table[i].is_named){
+            int j = 0;
+            while(name[j] && pipe_table[i].name[j] && name[j] == pipe_table[i].name[j]){
+                j++;
+            }
+            if(name[j] == '\0' && pipe_table[i].name[j] == '\0'){
+                pipe_table[i].opens++;
+                return &pipe_table[i];
+            }
+        }
+    }
+
+    Pipe *p = pipe_alloc();
+    if(p == NULL){
+        return NULL;
+    }
+
+    int j;
+    for(j = 0; j < PIPE_NAME_LEN - 1 && name[j]; j++){
+        p->name[j] = name[j];
+    }
+    p->name[j] = '\0';
+    p->is_named = 1;
+    p->opens = 1;
+    return p;
+}
+
 void pipe_open_read(Pipe *p){
     if(p == NULL){
         return;
     }
     p->open_read++;
+    if(p->is_named && p->wait_w_count > 0 && p->open_read > 0){
+        pipe_wake_all_writers(p);
+    }
 }
 
 void pipe_open_write(Pipe *p){
@@ -114,6 +158,12 @@ void pipe_open_write(Pipe *p){
         return;
     }
     p->open_write++;
+    if(p->is_named){
+        p->eof = 0;
+        if(p->wait_r_count > 0){
+            pipe_wake_all_readers(p);
+        }
+    }
 }
 
 void pipe_close_read(Pipe *p){
@@ -137,6 +187,9 @@ void pipe_close_write(Pipe *p){
         p->open_write--;
     }
     if(p->open_write == 0){
+        if(p->is_named && p->opens >= 2){
+            p->eof = 1;
+        }
         pipe_wake_all_readers(p);
     }
     pipe_maybe_free(p);
@@ -148,15 +201,27 @@ uint64_t pipe_read(Pipe *p, char *buf, uint64_t count){
     }
 
     if(p->count == 0){
-        if(p->open_write == 0){
-            return 0; /* EOF */
+        if(p->is_named){
+            if(p->eof){
+                return 0;
+            }
+            PCB *cur = process_current();
+            if(cur != NULL){
+                queue_push(p->wait_readers, &p->wait_r_tail, &p->wait_r_count, cur->pid);
+                process_block(cur->pid);
+            }
+            return (uint64_t)-1;
+        } else {
+            if(p->open_write == 0){
+                return 0;
+            }
+            PCB *cur = process_current();
+            if(cur != NULL){
+                queue_push(p->wait_readers, &p->wait_r_tail, &p->wait_r_count, cur->pid);
+                process_block(cur->pid);
+            }
+            return (uint64_t)-1;
         }
-        PCB *cur = process_current();
-        if(cur != NULL){
-            queue_push(p->wait_readers, &p->wait_r_tail, &p->wait_r_count, cur->pid);
-            process_block(cur->pid);
-        }
-        return 0;
     }
 
     uint64_t n = 0;
@@ -184,6 +249,17 @@ uint64_t pipe_write(Pipe *p, const char *buf, uint64_t count){
     }
 
     if(p->open_read == 0){
+        if(p->is_named){
+            if(p->eof){
+                return 0;
+            }
+            PCB *cur = process_current();
+            if(cur != NULL){
+                queue_push(p->wait_writers, &p->wait_w_tail, &p->wait_w_count, cur->pid);
+                process_block(cur->pid);
+            }
+            return (uint64_t)-1;
+        }
         return 0;
     }
 
@@ -193,7 +269,7 @@ uint64_t pipe_write(Pipe *p, const char *buf, uint64_t count){
             queue_push(p->wait_writers, &p->wait_w_tail, &p->wait_w_count, cur->pid);
             process_block(cur->pid);
         }
-        return 0;
+        return (uint64_t)-1;
     }
 
     uint64_t n = 0;

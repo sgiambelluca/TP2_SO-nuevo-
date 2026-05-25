@@ -22,6 +22,7 @@ static Command commands[] = {
     {"test_processes", test_processes_cmd},
     {"test_prio", test_prio_cmd},
     {"test_sync", test_sync_cmd},
+    {"test_named_pipe", test_named_pipe_cmd},
     {"ps", ps},
     {0, 0},
 };
@@ -353,6 +354,7 @@ void help(){
     shellPrintString("test_processes <max> [&]  ->   test procesos (foreground/background)\n");
     shellPrintString("test_prio <target> [&]    ->   test prioridades (foreground/background)\n");
     shellPrintString("test_sync <n> <sem> [&]   ->   test sincronizacion (foreground/background)\n");
+    shellPrintString("test_named_pipe            ->   test pipes con nombre\n");
     shellPrintString("ps                        ->   lista de procesos activos.\n");
 }
 
@@ -508,7 +510,8 @@ uint64_t putchar(char c){
 
 char getchar(){
     char c;
-    while(sys_read(&c, 1) == 0)
+    uint64_t n;
+    while((n = sys_read(0, &c, 1)) == (uint64_t)-1)
         ;
     return c;
 }
@@ -517,7 +520,8 @@ char getchar(){
    ejecutarse in-process dentro de la shell. */
 static int is_child_command(const char *name){
     static const char *child_cmds[] = {
-        "test_mm", "test_processes", "test_prio", "test_sync", NULL
+        "test_mm", "test_processes", "test_prio", "test_sync",
+        "np_writer", "np_reader", NULL
     };
     for(int i = 0; child_cmds[i]; i++)
         if(strcmp(name, child_cmds[i]) == 0)

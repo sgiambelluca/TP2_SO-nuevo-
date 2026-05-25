@@ -35,6 +35,7 @@ GLOBAL sys_sem_close
 GLOBAL sys_pipe
 GLOBAL sys_dup2
 GLOBAL sys_close
+GLOBAL sys_pipe_open
 
 section .text
 
@@ -135,6 +136,11 @@ sys_dup2:
 
 sys_close:
     mov rax, 35
+    int 0x80
+    ret
+
+sys_pipe_open:
+    mov rax, 36
     int 0x80
     ret
 

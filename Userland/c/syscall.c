@@ -25,6 +25,8 @@ static ProcEntry registry[] = {
     {"test_processes",     (void *)test_processes_entry},
     {"test_prio",          (void *)test_prio_entry},
     {"test_sync",          (void *)test_sync_entry},
+    {"np_writer",          (void *)np_writer_entry},
+    {"np_reader",          (void *)np_reader_entry},
     {0, 0}
 };
 
@@ -90,4 +92,8 @@ int64_t my_sem_post(char *name) {
 
 int64_t my_sem_close(char *name) {
     return sys_sem_close(name);
+}
+
+int64_t my_pipe_open(char *name, int fds[2]) {
+    return sys_pipe_open(name, fds);
 }

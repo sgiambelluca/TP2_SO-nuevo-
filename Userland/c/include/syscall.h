@@ -25,4 +25,6 @@ int64_t my_sem_wait(char *name);
 int64_t my_sem_post(char *name);
 int64_t my_sem_close(char *name);
 
+int64_t my_pipe_open(char *name, int fds[2]);
+
 #endif

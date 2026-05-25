@@ -8,7 +8,7 @@ extern void * syscalls[CANT_SYS];
 
 // Syscalls 0-18 (existentes)
 uint64_t sys_write(uint64_t fd, const char * buff, uint64_t count);
-uint64_t sys_read(char * buff, uint64_t count);
+uint64_t sys_read(uint64_t fd, char * buff, uint64_t count);
 uint64_t sys_registers(char * buff);
 void sys_time(uint8_t * buff);
 void sys_date(uint8_t * buff);
@@ -50,5 +50,8 @@ int64_t  sys_sem_close(const char *name);
 int64_t  sys_pipe(uint64_t fd_array);
 int64_t  sys_dup2(uint64_t old_fd, uint64_t new_fd);
 int64_t  sys_close(uint64_t fd);
+
+// Syscall 36 (named pipe)
+int64_t  sys_pipe_open(uint64_t name, uint64_t fd_array);
 
 #endif

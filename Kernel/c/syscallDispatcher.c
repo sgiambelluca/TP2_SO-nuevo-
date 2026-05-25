@@ -41,21 +41,41 @@ void sys_clear(void){
 
 uint64_t sys_write(uint64_t fd, const char * buff, uint64_t count){
     PCB *cur = process_current();
-    if(cur == NULL || fd > FD_STDOUT){
+    if(cur == NULL || buff == NULL || count == 0){
         return 0;
     }
-    FD *d = fd_get((uint64_t)cur->fd[fd]);
+
+    int real_fd;
+    if(fd <= FD_STDOUT){
+        real_fd = cur->fd[fd];
+        if(real_fd < 0){
+            return 0;
+        }
+    } else {
+        real_fd = (int)fd;
+    }
+
+    FD *d = fd_get((uint64_t)real_fd);
     return fd_write(d, buff, count, cur);
 }
 
-// sys_read: solo el proceso foreground puede leer del teclado.
-// Si no es foreground o no hay tecla, retorna 0.
-uint64_t sys_read(char * buff, uint64_t count){
+uint64_t sys_read(uint64_t fd, char * buff, uint64_t count){
     PCB *cur = process_current();
-    if(cur == NULL){
+    if(cur == NULL || buff == NULL || count == 0){
         return 0;
     }
-    FD *d = fd_get((uint64_t)cur->fd[0]);
+
+    int real_fd;
+    if(fd <= FD_STDIN){
+        real_fd = cur->fd[fd];
+        if(real_fd < 0){
+            return 0;
+        }
+    } else {
+        real_fd = (int)fd;
+    }
+
+    FD *d = fd_get((uint64_t)real_fd);
     return fd_read(d, buff, count, cur);
 }
 
@@ -173,7 +193,7 @@ int64_t sys_sem_close(const char *name) {
     return sem_close(name);
 }
 
-// ─── Syscalls de pipes (33-35) ────────────────────────────────────────────────
+// ─── Syscalls de pipes (33-36) ────────────────────────────────────────────────
 
 int64_t sys_pipe(uint64_t fd_array){
     if(fd_array == 0){
@@ -232,16 +252,34 @@ int64_t sys_dup2(uint64_t old_fd, uint64_t new_fd){
 }
 
 int64_t sys_close(uint64_t fd){
-    PCB *cur = process_current();
-    if(cur != NULL){
-        if(cur->fd[0] == (int)fd){
-            cur->fd[0] = -1;
-        }
-        if(cur->fd[1] == (int)fd){
-            cur->fd[1] = -1;
-        }
-    }
     fd_decref(fd);
+    return 0;
+}
+
+int64_t sys_pipe_open(uint64_t name, uint64_t fd_array){
+    if(name == 0 || fd_array == 0){
+        return -1;
+    }
+
+    Pipe *p = pipe_open_named((const char *)name);
+    if(p == NULL){
+        return -1;
+    }
+
+    int read_fd = fd_create_pipe(p, 0);
+    if(read_fd < 0){
+        return -1;
+    }
+
+    int write_fd = fd_create_pipe(p, 1);
+    if(write_fd < 0){
+        fd_decref((uint64_t)read_fd);
+        return -1;
+    }
+
+    int *fds = (int *)fd_array;
+    fds[0] = read_fd;
+    fds[1] = write_fd;
     return 0;
 }
 
@@ -284,4 +322,5 @@ void * syscalls[CANT_SYS] = {
     &sys_pipe,              // 33
     &sys_dup2,              // 34
     &sys_close,             // 35
+    &sys_pipe_open,         // 36
 };

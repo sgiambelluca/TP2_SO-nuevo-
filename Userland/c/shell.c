@@ -48,7 +48,8 @@ void shellReadLine(char * buffer, uint64_t max){
     showCursor();
 
     while(1){
-        if(sys_read(&c, 1) == 1){
+        uint64_t n = sys_read(0, &c, 1);
+        if(n == 1){
             if(c == '\n'){
                 break;
             }
