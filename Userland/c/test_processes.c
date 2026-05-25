@@ -3,52 +3,61 @@
 #include "include/userlib.h"
 #include "include/shell.h"
 
+/* Estados posibles de un proceso. */
 enum State { RUNNING, BLOCKED, KILLED };
 
-typedef struct P_rq {
-    int32_t    pid;
+/* Estructura para representar una solicitud de proceso. */
+typedef struct P_rq{
+    int32_t pid;
     enum State state;
 } p_rq;
 
-static int64_t test_processes_internal(uint64_t argc, char *argv[]) {
-    uint8_t  rq;
-    uint8_t  alive = 0;
-    uint8_t  action;
+static int64_t test_processes_internal(uint64_t argc, char* argv[]){
+    uint8_t rq;
+    uint8_t alive = 0;
+    uint8_t action;
     uint64_t max_processes;
-    char    *argvAux[] = {0};
+    char* argvAux[] = {0};
 
-    if (argc != 1)
+    if(argc != 1){
         return -1;
+    }
 
-    if ((max_processes = (uint64_t)satoi(argv[0])) <= 0)
+    if((max_processes = (uint64_t)satoi(argv[0])) <= 0){
         return -1;
+    }
 
+    /* Arreglo de solicitudes de proceso. */
     p_rq p_rqs[max_processes];
 
-    while (1) {
-        for (rq = 0; rq < max_processes; rq++) {
+    while(1){
+        for(rq = 0; rq < max_processes; rq++){
             p_rqs[rq].pid = (int32_t)my_create_process("endless_loop", 0, argvAux);
 
-            if (p_rqs[rq].pid == -1) {
+            if(p_rqs[rq].pid == -1){
                 printf("test_processes: ERROR creando proceso\n");
                 return -1;
-            } else {
+            }else{
                 p_rqs[rq].state = RUNNING;
                 alive++;
             }
         }
 
-        while (alive > 0) {
-            for (rq = 0; rq < max_processes; rq++) {
+        while(alive > 0){
+            for(rq = 0; rq < max_processes; rq++){
+
+                /* Generar acción aleatoria */
                 action = (uint8_t)(GetUniform(100) % 2);
 
-                switch (action) {
+                switch(action){
                     case 0:
-                        if (p_rqs[rq].state == RUNNING || p_rqs[rq].state == BLOCKED) {
-                            if (my_kill((uint64_t)p_rqs[rq].pid) == -1) {
+                    /* Matar proceso. */
+                        if(p_rqs[rq].state == RUNNING || p_rqs[rq].state == BLOCKED){
+                            if(my_kill((uint64_t)p_rqs[rq].pid) == -1){
                                 printf("test_processes: ERROR matando proceso\n");
                                 return -1;
                             }
+
                             p_rqs[rq].state = KILLED;
                             my_wait(p_rqs[rq].pid);
                             alive--;
@@ -56,8 +65,9 @@ static int64_t test_processes_internal(uint64_t argc, char *argv[]) {
                         break;
 
                     case 1:
-                        if (p_rqs[rq].state == RUNNING) {
-                            if (my_block((uint64_t)p_rqs[rq].pid) == -1) {
+                    /* Bloquear proceso. */
+                        if(p_rqs[rq].state == RUNNING){
+                            if(my_block((uint64_t)p_rqs[rq].pid) == -1){
                                 printf("test_processes: ERROR bloqueando proceso\n");
                                 return -1;
                             }
@@ -67,12 +77,18 @@ static int64_t test_processes_internal(uint64_t argc, char *argv[]) {
                 }
             }
 
-            for (rq = 0; rq < max_processes; rq++) {
-                if (p_rqs[rq].state == BLOCKED && GetUniform(100) % 2) {
-                    if (my_unblock((uint64_t)p_rqs[rq].pid) == -1) {
+            /* Desbloquear procesos bloqueados. */
+            for(rq = 0; rq < max_processes; rq++){
+
+                /* Generar acción aleatoria */
+                if(p_rqs[rq].state == BLOCKED && GetUniform(100) % 2){
+
+                    if(my_unblock((uint64_t)p_rqs[rq].pid) == -1){
                         printf("test_processes: ERROR desbloqueando proceso\n");
                         return -1;
                     }
+
+                    /* Actualizar estado del proceso */
                     p_rqs[rq].state = RUNNING;
                 }
             }
@@ -82,12 +98,14 @@ static int64_t test_processes_internal(uint64_t argc, char *argv[]) {
 
 /* Wrapper de shell: test_processes <max_processes> */
 void test_processes_cmd(void) {
-    const char *args = cmd_args();
-    if (!args) {
+    const char* args = cmd_args();
+    
+    if(!args){
         shellPrintString("uso: test_processes <max_processes>\n");
         return;
     }
-    char *argv[1] = {(char *)args};
+
+    char* argv[1] = {(char* )args};
     test_processes_internal(1, argv);
 }
 
