@@ -54,4 +54,7 @@ int64_t  sys_close(uint64_t fd);
 // Syscall 36 (named pipe)
 int64_t  sys_pipe_open(uint64_t name, uint64_t fd_array);
 
+// Syscall 37 (pipe setup para pipes entre comandos)
+int64_t  sys_pipe_setup(uint64_t pid, uint64_t stdio_fd, uint64_t target);
+
 #endif

@@ -226,7 +226,7 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
     p->pid = ++next_pid;
     p->priority = DEFAULT_PRIORITY;
     p->remaining_quanta = DEFAULT_PRIORITY;
-    p->state = PROCESS_READY;
+    p->state = (fg & 2) ? PROCESS_BLOCKED : PROCESS_READY;
     p->foreground = fg;     /* flag para indicar si el proceso es de primer plano. */
     p->fd[0] = FD_STDIN;
     p->fd[1] = FD_STDOUT;
@@ -437,4 +437,20 @@ uint64_t process_ps(ProcessInfo *buf, uint64_t max){
     }
 
     return count;
+}
+
+/* Redirige stdin/stdout de un proceso hijo antes de que arranque.
+   Lo usa la shell para conectar comandos con pipes. */
+void process_pipe_setup(uint64_t pid, int stdio_fd, int target){
+    PCB *child = process_get(pid);
+    if(child == NULL || target > 1){
+        return;
+    }
+
+    if(child->fd[target] >= 0){
+        fd_decref((uint64_t)child->fd[target]);
+    }
+
+    child->fd[target] = stdio_fd;
+    fd_incref((uint64_t)stdio_fd);
 }

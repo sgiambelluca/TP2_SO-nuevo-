@@ -26,5 +26,6 @@ int64_t my_sem_post(char *name);
 int64_t my_sem_close(char *name);
 
 int64_t my_pipe_open(char *name, int fds[2]);
+int64_t my_pipe_setup(uint64_t pid, uint64_t stdio_fd, uint64_t target);
 
 #endif

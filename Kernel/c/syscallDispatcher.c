@@ -269,6 +269,11 @@ int64_t sys_pipe_open(uint64_t name, uint64_t fd_array){
     return pipe_create_fds(p, (int *)fd_array);
 }
 
+int64_t sys_pipe_setup(uint64_t pid, uint64_t stdio_fd, uint64_t target){
+    process_pipe_setup(pid, (int)stdio_fd, (int)target);
+    return 0;
+}
+
 /* Tabla de syscalls */
 void * syscalls[CANT_SYS] = {
     &sys_registers,         // 0
@@ -308,4 +313,5 @@ void * syscalls[CANT_SYS] = {
     &sys_dup2,              // 34
     &sys_close,             // 35
     &sys_pipe_open,         // 36
+    &sys_pipe_setup,        // 37
 };

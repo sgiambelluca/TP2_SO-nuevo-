@@ -534,9 +534,125 @@ static int parse_args(char *src, char **argv, int max_argv){
     return argc;
 }
 
+/* Busca '|' en buff y lo parte en dos comandos.
+   Retorna 1 si encontro pipe, 0 si no. */
+static int parse_pipe(char *buff, char **left, char **right){
+    size_t i;
+    for(i = 0; buff[i]; i++){
+        if(buff[i] == '|'){
+            buff[i] = '\0';
+            *left = buff;
+            *right = &buff[i + 1];
+
+            size_t l = strlen(*left);
+            while(l > 0 && (*left)[l - 1] == ' ')
+                (*left)[--l] = '\0';
+
+            while(**right == ' ')
+                (*right)++;
+
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Ejecuta dos comandos conectados por pipe: stdout del izquierdo → stdin del derecho.
+   Ambos comandos deben ser procesos hijos (child commands), no built-ins.
+   Los procesos se crean BLOCKED (fg=3) para evitar race condition en la redireccion. */
+static void handle_pipe(char *left, char *right, int bg){
+    int fds[2];
+    if(sys_pipe(fds) < 0){
+        shellPrintString("Error creando pipe\n");
+        return;
+    }
+
+    char *left_name = left;
+    char *left_args = 0;
+    for(size_t i = 0; left[i]; i++){
+        if(left[i] == ' '){
+            left[i] = '\0';
+            size_t j = i + 1;
+            while(left[j] == ' ') j++;
+            if(left[j] != '\0') left_args = &left[j];
+            break;
+        }
+    }
+
+    char *right_name = right;
+    char *right_args = 0;
+    for(size_t i = 0; right[i]; i++){
+        if(right[i] == ' '){
+            right[i] = '\0';
+            size_t j = i + 1;
+            while(right[j] == ' ') j++;
+            if(right[j] != '\0') right_args = &right[j];
+            break;
+        }
+    }
+
+    if(!is_child_command(left_name) || !is_child_command(right_name)){
+        shellPrintString("Pipe solo soporta comandos externos\n");
+        sys_close((uint64_t)fds[0]);
+        sys_close((uint64_t)fds[1]);
+        return;
+    }
+
+    char *argv1[16] = {0};
+    int argc1 = 0;
+    if(left_args)
+        argc1 = parse_args(left_args, argv1, 15);
+
+    char *argv2[16] = {0};
+    int argc2 = 0;
+    if(right_args)
+        argc2 = parse_args(right_args, argv2, 15);
+
+    int64_t pid1 = my_create_process_fg(left_name, (uint64_t)argc1, argv1, 3);
+    if(pid1 < 0){
+        shellPrintString("Error creando proceso izquierdo\n");
+        sys_close((uint64_t)fds[0]);
+        sys_close((uint64_t)fds[1]);
+        return;
+    }
+
+    int64_t pid2 = my_create_process_fg(right_name, (uint64_t)argc2, argv2, 3);
+    if(pid2 < 0){
+        shellPrintString("Error creando proceso derecho\n");
+        sys_kill((uint64_t)pid1);
+        sys_close((uint64_t)fds[0]);
+        sys_close((uint64_t)fds[1]);
+        return;
+    }
+
+    sys_pipe_setup((uint64_t)pid1, (uint64_t)fds[1], 1);
+    sys_pipe_setup((uint64_t)pid2, (uint64_t)fds[0], 0);
+
+    sys_close((uint64_t)fds[0]);
+    sys_close((uint64_t)fds[1]);
+
+    sys_unblock((uint64_t)pid1);
+    sys_unblock((uint64_t)pid2);
+
+    if(!bg){
+        my_wait(pid1);
+        my_wait(pid2);
+    } else {
+        shellPrintString("[");
+        char tmp[16];
+        num_to_str((uint64_t)pid1, tmp, 10);
+        shellPrintString(tmp);
+        shellPrintString(", ");
+        num_to_str((uint64_t)pid2, tmp, 10);
+        shellPrintString(tmp);
+        shellPrintString("]\n");
+    }
+}
+
 /* Busca y ejecuta el comando ingresado. Los tests (test_mm, test_processes,
    test_prio, test_sync) se spawnean como procesos hijos. Si el comando
-   termina con '&' se ejecuta en background; sino en foreground con waitpid. */
+   termina con '&' se ejecuta en background; sino en foreground con waitpid.
+   Soporta pipes entre comandos con '|'. */
 void processLine(char *buff, uint32_t *history_len){
     (void)history_len;
 
@@ -558,6 +674,13 @@ void processLine(char *buff, uint32_t *history_len){
         while(((len > 0) && (buff[len - 1] == ' '))){
             buff[--len] = '\0';
         }
+    }
+
+    /* Detectar '|' para pipes entre comandos */
+    char *pipe_left, *pipe_right;
+    if(parse_pipe(buff, &pipe_left, &pipe_right)){
+        handle_pipe(pipe_left, pipe_right, bg);
+        return;
     }
 
     /* Separar nombre del comando y argumentos */

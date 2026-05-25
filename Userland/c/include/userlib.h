@@ -100,6 +100,7 @@ int64_t  sys_pipe(int fds[2]);
 int64_t  sys_dup2(uint64_t old_fd, uint64_t new_fd);
 int64_t  sys_pipe_open(const char *name, int fds[2]);
 int64_t  sys_close(uint64_t fd);
+int64_t  sys_pipe_setup(uint64_t pid, uint64_t stdio_fd, uint64_t target);
 
 // ─── Utilitarios ─────────────────────────────────────────────────────────────
 uint64_t putchar(char c);

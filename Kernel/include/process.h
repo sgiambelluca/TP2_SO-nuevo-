@@ -62,5 +62,6 @@ void process_unblock(uint64_t pid);
 void process_nice(uint64_t pid, uint8_t new_priority);
 int process_waitpid(uint64_t pid);
 uint64_t process_ps(ProcessInfo *buf, uint64_t max);
+void process_pipe_setup(uint64_t pid, int stdio_fd, int target);
 
 #endif
