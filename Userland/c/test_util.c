@@ -4,8 +4,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-/* ── Generador de números pseudo-aleatorios (MWC) ────────────────────────── */
-
+/* Generador de números pseudo-aleatorios. */
 static uint32_t m_z = 362436069;
 static uint32_t m_w = 521288629;
 

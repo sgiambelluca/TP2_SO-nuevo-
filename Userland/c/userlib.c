@@ -90,16 +90,6 @@ uint64_t num_to_str(uint64_t value, char * dest, int base){
 
 // Benchmark de CPU (operaciones int/float)
 void bmCPU(){
-    /*
-     * bmCPU - simple CPU benchmark
-     * - Runs a mix of integer and floating-point operations N times
-     * - Measures elapsed ticks using sys_ticks() and prints total time
-     *   and a rough operations-per-tick metric.
-     *
-     * Notes:
-     * - N is kept reasonably large to get measurable tick counts.
-     * - This is a coarse benchmark (no warming, no cycle-accurate timing).
-     */
     const uint32_t N = 1000000u;
     uint64_t ticks = sys_ticks();
 
@@ -142,12 +132,6 @@ void bmCPU(){
 
 // Benchmark de FPS aproximado (limpia pantalla en loop)
 void bmFPS(){    
-    /*
-     * bmFPS - crude frame-rate benchmark
-     * - Repeatedly clears the screen for ~3 seconds and counts iterations.
-     * - Assumes sys_ticks() increments roughly 18 times per second (BIOS-like).
-     * - Avoid printing inside the loop to not skew the results.
-     */
     uint64_t ticks = sys_ticks();
     uint64_t count = 0;
     /* 18 ticks ~= 1 second on many systems that emulate BIOS ticks */
@@ -172,15 +156,6 @@ void bmFPS(){
 
 // Benchmark simple de memoria (llenado/copia/checksum)
 void bmMEM(){
-    /*
-     * bmMEM - simple memory benchmark
-     * - Fills a 4KB buffer many times, computes a checksum and does copies.
-     * - Measures elapsed ticks and reports operations per tick.
-     *
-     * Notes:
-     * - Make sure the operations count is calculated using 64-bit to avoid
-     *   intermediate overflow on 32-bit platforms.
-     */
     char buffer[4 * KB];
     uint64_t totalChecksum = 0;
     uint64_t ticks = sys_ticks();
@@ -336,25 +311,25 @@ void shellDecreaseFontSize(){
 // Lista de comandos disponibles
 void help(){
     shellPrintString("Comandos disponibles: \n");
-    shellPrintString("help      ->   muestra la lista de comandos.\n");
-    shellPrintString("clear     ->   limpia la pantalla.\n");
-    shellPrintString("+         ->   aumenta tamaño de fuente.\n");
-    shellPrintString("-         ->   disminuye tamaño de fuente.\n");
-    shellPrintString("printTime ->   imprime la hora actual.\n");
-    shellPrintString("printDate ->   imprime la fecha actual.\n");
-    shellPrintString("registers ->   imprime registros.\n");
-    shellPrintString("testDiv0  ->   division por cero.\n");
-    shellPrintString("invOp     ->   instruccion invalida.\n");
-    shellPrintString("playBeep  ->   reproduce un beep.\n");
-    shellPrintString("bmFPS     ->   benchmark de FPS.\n");
-    shellPrintString("bmCPU     ->   benchmark de CPU.\n");
-    shellPrintString("bmMEM     ->   benchmark de MEM.\n");
-    shellPrintString("bmKEY     ->   benchmark de teclado.\n");
-    shellPrintString("test_mm <max> [&]         ->   test memory manager (foreground/background)\n");
-    shellPrintString("test_processes <max> [&]  ->   test procesos (foreground/background)\n");
-    shellPrintString("test_prio <target> [&]    ->   test prioridades (foreground/background)\n");
-    shellPrintString("test_sync <n> <sem> [&]   ->   test sincronizacion (foreground/background)\n");
-    shellPrintString("test_named_pipe            ->   test pipes con nombre\n");
+    shellPrintString("help                      ->   muestra la lista de comandos.\n");
+    shellPrintString("clear                     ->   limpia la pantalla.\n");
+    shellPrintString("+                         ->   aumenta tamaño de fuente.\n");
+    shellPrintString("-                         ->   disminuye tamaño de fuente.\n");
+    shellPrintString("printTime                 ->   imprime la hora actual.\n");
+    shellPrintString("printDate                 ->   imprime la fecha actual.\n");
+    shellPrintString("registers                 ->   imprime registros.\n");
+    shellPrintString("testDiv0                  ->   division por cero.\n");
+    shellPrintString("invOp                     ->   instruccion invalida.\n");
+    shellPrintString("playBeep                  ->   reproduce un beep.\n");
+    shellPrintString("bmFPS                     ->   benchmark de FPS.\n");
+    shellPrintString("bmCPU                     ->   benchmark de CPU.\n");
+    shellPrintString("bmMEM                     ->   benchmark de MEM.\n");
+    shellPrintString("bmKEY                     ->   benchmark de teclado.\n");
+    shellPrintString("test_mm <max> [&]         ->   test de memory manager. (foreground/background)\n");
+    shellPrintString("test_processes <max> [&]  ->   test de procesos. (foreground/background)\n");
+    shellPrintString("test_prio <target> [&]    ->   test de prioridades. (foreground/background)\n");
+    shellPrintString("test_sync <n> <sem> [&]   ->   test de sincronizacion. (foreground/background)\n");
+    shellPrintString("test_named_pipe           ->   test de pipes con nombre. \n");
     shellPrintString("ps                        ->   lista de procesos activos.\n");
 }
 
@@ -532,16 +507,30 @@ static int is_child_command(const char *name){
 /* Copia tokenizada de cmd_args en argv[]. Retorna argc. */
 static int parse_args(char *src, char **argv, int max_argv){
     int argc = 0;
+
     while(src && *src && argc < max_argv){
-        while(*src == ' ') src++;
-        if(*src == '\0') break;
+
+        while(*src == ' '){
+            src++;
+        }
+
+        if(*src == '\0'){
+            /* Fin de la cadena */
+            break;
+        }
+
         argv[argc++] = src;
-        while(*src && *src != ' ') src++;
+        
+        while(*src && *src != ' '){
+            src++;
+        }
+
         if(*src == ' '){
             *src = '\0';
             src++;
         }
     }
+
     return argc;
 }
 
@@ -550,30 +539,44 @@ static int parse_args(char *src, char **argv, int max_argv){
    termina con '&' se ejecuta en background; sino en foreground con waitpid. */
 void processLine(char *buff, uint32_t *history_len){
     (void)history_len;
-    if(strlen(buff) == 0)
+
+    if(strlen(buff) == 0){
         return;
+    }
 
     /* Detectar '&' al final (background) */
     int bg = 0;
+
     size_t len = strlen(buff);
+
     if(len > 0 && buff[len - 1] == '&'){
+
         bg = 1;
         buff[len - 1] = '\0';
         len--;
-        while(len > 0 && buff[len - 1] == ' '){
+
+        while(((len > 0) && (buff[len - 1] == ' '))){
             buff[--len] = '\0';
         }
     }
 
     /* Separar nombre del comando y argumentos */
     g_cmd_args = 0;
+
     for(size_t i = 0; buff[i]; i++){
+        
         if(buff[i] == ' '){
             buff[i] = '\0';
             size_t j = i + 1;
-            while(buff[j] == ' ') j++;
-            if(buff[j] != '\0')
+
+            while(buff[j] == ' '){
+                j++;
+            }
+            
+            if(buff[j] != '\0'){
                 g_cmd_args = &buff[j];
+            }
+
             break;
         }
     }
@@ -615,8 +618,8 @@ void processLine(char *buff, uint32_t *history_len){
 
 static const char *state_names[] = {"FREE", "READY", "RUNNING", "BLOCKED", "ZOMBIE"};
 
-// Muestra la lista de procesos activos con PID, nombre, prioridad y estado
-void ps(void) {
+/* Muestra la lista de procesos activos con PID, nombre, prioridad y estado. */ 
+void ps(void){
     static ProcessInfo buf[MAX_PROCESSES];
     uint64_t count = sys_ps(buf, MAX_PROCESSES);
     char tmp[24];
@@ -624,7 +627,7 @@ void ps(void) {
     shellPrintString("PID  PRI  FG  STATE    NAME\n");
     shellPrintString("---  ---  --  -------  --------\n");
 
-    for (uint64_t i = 0; i < count; i++) {
+    for(uint64_t i = 0; i < count; i++){
         // PID
         num_to_str(buf[i].pid, tmp, 10);
         shellPrintString(tmp);
@@ -641,10 +644,11 @@ void ps(void) {
 
         // Estado
         uint8_t st = buf[i].state;
-        if (st <= 4)
+        if(st <= 4){
             shellPrintString((char *)state_names[st]);
-        else
+        } else{
             shellPrintString("?");
+        }
         shellPrintString("  ");
 
         // Nombre
