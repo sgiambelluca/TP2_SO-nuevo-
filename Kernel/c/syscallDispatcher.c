@@ -191,19 +191,11 @@ int64_t sys_sem_close(const char *name) {
     return sem_close(name);
 }
 
-int64_t sys_pipe(uint64_t fd_array){
-    if(fd_array == 0){
-        return -1;
-    }
-
-    Pipe *p = pipe_alloc();
-    if(p == NULL){
-        return -1;
-    }
-
+/* Crea un par de FDs (lectura + escritura) para un pipe y los guarda en fds[].
+   El pipe ya debe estar reservado via pipe_open. */
+static int64_t pipe_create_fds(Pipe *p, int *fds){
     int read_fd = fd_create_pipe(p, 0);
     if(read_fd < 0){
-        pipe_close_read(p);
         return -1;
     }
 
@@ -213,10 +205,22 @@ int64_t sys_pipe(uint64_t fd_array){
         return -1;
     }
 
-    int *fds = (int *)fd_array;
     fds[0] = read_fd;
     fds[1] = write_fd;
     return 0;
+}
+
+int64_t sys_pipe(uint64_t fd_array){
+    if(fd_array == 0){
+        return -1;
+    }
+
+    Pipe *p = pipe_open(NULL);
+    if(p == NULL){
+        return -1;
+    }
+
+    return pipe_create_fds(p, (int *)fd_array);
 }
 
 int64_t sys_dup2(uint64_t old_fd, uint64_t new_fd){
@@ -257,26 +261,12 @@ int64_t sys_pipe_open(uint64_t name, uint64_t fd_array){
         return -1;
     }
 
-    Pipe *p = pipe_open_named((const char *)name);
+    Pipe *p = pipe_open((const char *)name);
     if(p == NULL){
         return -1;
     }
 
-    int read_fd = fd_create_pipe(p, 0);
-    if(read_fd < 0){
-        return -1;
-    }
-
-    int write_fd = fd_create_pipe(p, 1);
-    if(write_fd < 0){
-        fd_decref((uint64_t)read_fd);
-        return -1;
-    }
-
-    int *fds = (int *)fd_array;
-    fds[0] = read_fd;
-    fds[1] = write_fd;
-    return 0;
+    return pipe_create_fds(p, (int *)fd_array);
 }
 
 /* Tabla de syscalls */

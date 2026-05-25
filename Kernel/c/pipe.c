@@ -113,7 +113,7 @@ void pipe_init(void){
 }
 
 /* Reserva un pipe libre de la tabla. */
-Pipe* pipe_alloc(void){
+static Pipe* pipe_alloc(void){
     for(int i = 0; i < MAX_PIPES; i++){
         if(!pipe_table[i].in_use){
             Pipe* p = &pipe_table[i];
@@ -126,41 +126,41 @@ Pipe* pipe_alloc(void){
     return NULL;
 }
 
-/* Abre un pipe nombrado existente o crea uno nuevo con ese nombre. */
-Pipe* pipe_open_named(const char* name){
-    if(name == NULL){
-        return NULL;
-    }
-
-    for(int i = 0; i < MAX_PIPES; i++){
+/* Abre un pipe: si name es NULL crea un pipe anonimo,
+   si no busca un pipe nombrado existente o crea uno nuevo. */
+Pipe* pipe_open(const char* name){
+    if(name != NULL){
         /* Buscar un pipe nombrado que coincida con el nombre dado. */
-        if(pipe_table[i].in_use && pipe_table[i].is_named){
-            int j = 0;
-
-            while(name[j] && pipe_table[i].name[j] && name[j] == pipe_table[i].name[j]){
-                j++;
-            }
-
-            if(name[j] == '\0' && pipe_table[i].name[j] == '\0'){
-                pipe_table[i].opens++;
-                return &pipe_table[i];
+        for(int i = 0; i < MAX_PIPES; i++){
+            if(pipe_table[i].in_use && pipe_table[i].is_named){
+                int j = 0;
+                while(name[j] && pipe_table[i].name[j] && name[j] == pipe_table[i].name[j]){
+                    j++;
+                }
+                if(name[j] == '\0' && pipe_table[i].name[j] == '\0'){
+                    pipe_table[i].opens++;
+                    return &pipe_table[i];
+                }
             }
         }
     }
 
-    /* Si no lo encontre, crear un nuevo pipe nombrado. */
+    /* No encontrado (o anonimo): crear nuevo pipe. */
     Pipe* p = pipe_alloc();
     if(p == NULL){
         return NULL;
     }
 
-    int j;
-    for(j = 0; j < PIPE_NAME_LEN - 1 && name[j]; j++){
-        p->name[j] = name[j];
+    if(name != NULL){
+        int j;
+        for(j = 0; j < PIPE_NAME_LEN - 1 && name[j]; j++){
+            p->name[j] = name[j];
+        }
+        p->name[j] = '\0';
+        p->is_named = 1;
+        p->opens = 1;
     }
-    p->name[j] = '\0';
-    p->is_named = 1;
-    p->opens = 1;
+
     return p;
 }
 

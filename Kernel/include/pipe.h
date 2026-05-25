@@ -10,8 +10,7 @@
 typedef struct Pipe Pipe;
 
 void pipe_init(void);
-Pipe *pipe_alloc(void);
-Pipe *pipe_open_named(const char *name);
+Pipe *pipe_open(const char *name);
 uint64_t pipe_read(Pipe *p, char *buf, uint64_t count);
 uint64_t pipe_write(Pipe *p, const char *buf, uint64_t count);
 void pipe_open_read(Pipe *p);
