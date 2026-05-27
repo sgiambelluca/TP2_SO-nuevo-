@@ -330,6 +330,7 @@ void help(){
     shellPrintString("test_prio <target> [&]    ->   test de prioridades. (foreground/background)\n");
     shellPrintString("test_sync <n> <sem> [&]   ->   test de sincronizacion. (foreground/background)\n");
     shellPrintString("test_named_pipe           ->   test de pipes con nombre. \n");
+    shellPrintString("mem                       ->   muestra estado de la memoria.\n");
     shellPrintString("ps                        ->   lista de procesos activos.\n");
 }
 
@@ -496,7 +497,7 @@ char getchar(){
 static int is_child_command(const char *name){
     static const char *child_cmds[] = {
         "test_mm", "test_processes", "test_prio", "test_sync",
-        "np_writer", "np_reader", NULL
+        "np_writer", "np_reader", "mem", NULL
     };
     for(int i = 0; child_cmds[i]; i++)
         if(strcmp(name, child_cmds[i]) == 0)

@@ -35,6 +35,7 @@ static ProcEntry registry[] = {
     {"test_sync", (void *)test_sync_entry},
     {"np_writer", (void *)np_writer_entry},
     {"np_reader", (void *)np_reader_entry},
+    {"mem", (void *)mem},
     {0, 0}
 };
 
