@@ -81,7 +81,7 @@ void endless_loop(int argc, char *argv[]){
 }
 
 void endless_loop_print(int argc, char *argv[]){
-    uint64_t wait = (argc > 0 && argv && argv[0]) ? (uint64_t)satoi(argv[0]) : 0;
+    uint64_t wait = (argc > 0 && argv && argv[0]) ? (uint64_t)satoi(argv[0]) : 1000000000;
     int64_t pid = (int64_t)sys_getpid();
 
     while(1){

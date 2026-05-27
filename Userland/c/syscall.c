@@ -27,6 +27,7 @@ static int str_eq(const char *a, const char *b) {
 static ProcEntry registry[] = {
     {"endless_loop", (void *)endless_loop},
     {"endless_loop_print", (void *)endless_loop_print},
+    {"loop", (void *)endless_loop_print},
     {"zero_to_max", (void *)zero_to_max},
     {"my_process_inc", (void *)my_process_inc},
     {"test_mm", (void *)test_mm_entry},
