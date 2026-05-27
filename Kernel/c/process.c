@@ -272,6 +272,10 @@ void process_exit(int retval){
         parent->rsp[14] = (uint64_t)(int64_t)retval;
         parent->waiting_for = 0;
         parent->state = PROCESS_READY;
+
+        /* Reap inmediato: el padre ya recibio el retval, no necesitamos ZOMBIE. */
+        current_process->state = PROCESS_FREE;
+        current_process->pid = 0;
     }
 
     /* Liberar stack y argv del proceso que muere. */ 
