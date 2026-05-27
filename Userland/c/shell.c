@@ -20,7 +20,7 @@ static void hideCursor(void){
 }
 
 // Bucle principal de la shell de usuario
-int main(void){
+void shell_run(void){
     shellPrintString(WELCOME);
     shellNewline();
     shellPrintString("Escriba 'help' para listar comandos.\n");
@@ -34,7 +34,10 @@ int main(void){
         shellNewline();
         processLine(buff, 0);
     }
+}
 
+int main(void){
+    shell_run();
     return 0;
 }
 

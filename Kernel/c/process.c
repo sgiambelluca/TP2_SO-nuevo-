@@ -265,6 +265,21 @@ void process_exit(int retval){
 
     /* Despertar al padre si esta bloqueado en waitpid esperando este proceso. */
     PCB* parent = process_get(current_process->parent_pid);
+    if(parent == NULL || parent->state == PROCESS_FREE){
+        /* Padre muerto o liberado: auto-reap para no quedar como ZOMBIE huérfano. */
+        mm_free(current_process->stack_base);
+        current_process->stack_base = NULL;
+        if(current_process->argv != NULL){
+            mm_free(current_process->argv);
+            current_process->argv = NULL;
+        }
+        current_process->rsp = NULL;
+        current_process->state = PROCESS_FREE;
+        current_process->pid = 0;
+        force_switch = 1;
+        return;
+    }
+
     if(parent != NULL && parent->state == PROCESS_BLOCKED && parent->waiting_for == current_process->pid){
 
         /* Escribir el retval directamente en el RAX guardado del padre. */ 

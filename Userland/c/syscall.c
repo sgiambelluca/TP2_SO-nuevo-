@@ -40,6 +40,7 @@ static ProcEntry registry[] = {
     {"kill", (void *)kill_cmd},
     {"nice", (void *)nice_cmd},
     {"block", (void *)block_cmd},
+    {"sh", (void *)sh_entry},
     {0, 0}
 };
 
