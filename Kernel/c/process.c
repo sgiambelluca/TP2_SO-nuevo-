@@ -134,6 +134,29 @@ void process_init(void){
     current_process = NULL;
 }
 
+/* Mata el proceso foreground con PID mas alto (el mas reciente),
+   pero solo si hay mas de uno. Asi no se mata a la shell sola. */
+void process_kill_foreground(void){
+    int target_idx = -1;
+    uint64_t target_pid = 0;
+    int fg_count = 0;
+
+    for(int i = 0; i < MAX_PROCESSES; i++){
+        PCB *p = &process_table[i];
+        if(p->state != PROCESS_FREE && p->foreground){
+            fg_count++;
+            if(p->pid > target_pid){
+                target_pid = p->pid;
+                target_idx = i;
+            }
+        }
+    }
+
+    if(target_idx >= 0 && fg_count > 1){
+        process_kill(target_pid);
+    }
+}
+
 /* Devuelve el proceso actual. */
 PCB* process_current(void){
     return current_process;
@@ -276,14 +299,15 @@ void process_exit(int retval){
         current_process->rsp = NULL;
         current_process->state = PROCESS_FREE;
         current_process->pid = 0;
+        scheduler_remove(current_process);
         force_switch = 1;
         return;
     }
 
     if(parent != NULL && parent->state == PROCESS_BLOCKED && parent->waiting_for == current_process->pid){
 
-        /* Escribir el retval directamente en el RAX guardado del padre. */ 
-        /* parent->rsp apunta al slot R15; el slot RAX esta 14 qwords mas arriba. */ 
+        /* Escribir el retval directamente en el RAX guardado del padre. */
+        /* parent->rsp apunta al slot R15; el slot RAX esta 14 qwords mas arriba. */
         parent->rsp[14] = (uint64_t)(int64_t)retval;
         parent->waiting_for = 0;
         parent->state = PROCESS_READY;
@@ -293,7 +317,7 @@ void process_exit(int retval){
         current_process->pid = 0;
     }
 
-    /* Liberar stack y argv del proceso que muere. */ 
+    /* Liberar stack y argv del proceso que muere. */
     mm_free(current_process->stack_base);
     current_process->stack_base = NULL;
     if(current_process->argv != NULL){
@@ -302,6 +326,7 @@ void process_exit(int retval){
     }
     current_process->rsp = NULL;
 
+    scheduler_remove(current_process);
     force_switch = 1;   /* Ceder CPU en el proximo retorno de syscall. */
 }
 
@@ -316,9 +341,9 @@ void process_kill(uint64_t pid){
     /* Despertar padre si estaba esperando este proceso. */
     PCB *parent = process_get(p->parent_pid);
     if(parent != NULL && parent->state == PROCESS_BLOCKED && parent->waiting_for == pid){
-        /* Escribir el retval directamente en el RAX guardado del padre. 
-        ** El valor -1 indica que el proceso fue matado. */ 
-        parent->rsp[14] = (uint64_t)(uint32_t)(-1); // ?¿
+        /* Escribir el retval directamente en el RAX guardado del padre.
+        ** El valor -1 indica que el proceso fue matado. */
+        parent->rsp[14] = (uint64_t)(int64_t)(-1);
         parent->waiting_for = 0;
         parent->state = PROCESS_READY;
     }
@@ -327,20 +352,14 @@ void process_kill(uint64_t pid){
         /* Se quiere matar el mismo. */
         current_process->state = PROCESS_ZOMBIE;
         process_release_fds(current_process);
-        mm_free(current_process->stack_base);
-        current_process->stack_base = NULL;
-        if(current_process->argv != NULL){
-            mm_free(current_process->argv);
-            current_process->argv = NULL;
-        }
-        current_process->rsp = NULL;
-        /* Fuerza el switch para seguir con otro proceso. */
-        force_switch = 1;       
+        /* No liberar stack ni argv aqui: el scheduler los libera tras el
+           context switch, cuando el proceso ya no esta en la CPU. */
+        force_switch = 1;
     }else{
-        /* Matar otro proceso: liberar recursos inmediatamente y removerlo del scheduler. 
+        /* Matar otro proceso: liberar recursos inmediatamente y removerlo del scheduler.
         ** No es necesario marcarlo como PROCESS_ZOMBIE porque el proceso actual no esta esperando por el.
         ** Entonces no hay riesgo si hago scheduler_remove y libero el slot del proceso.
-        */ 
+        */
         scheduler_remove(p);
         process_release_fds(p);
         if(p->stack_base != NULL){
@@ -427,6 +446,17 @@ int process_waitpid(uint64_t pid){
         /* Proceso hijo ya termino. */
 
         int retval = child->retval;
+
+        /* Liberar recursos del hijo antes de reclamarlo. */
+        if(child->stack_base != NULL){
+            mm_free(child->stack_base);
+            child->stack_base = NULL;
+        }
+        if(child->argv != NULL){
+            mm_free(child->argv);
+            child->argv = NULL;
+        }
+        child->rsp = NULL;
 
         /* Reclama el proceso de la tabla de procesos. */
         child->state = PROCESS_FREE;

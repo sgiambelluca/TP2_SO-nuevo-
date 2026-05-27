@@ -124,6 +124,11 @@ uint64_t fd_read(FD* d, char* buf, uint64_t count, struct PCB* cur){
             /* Leer del buffer de teclado. */
             uint64_t n = readKeyBuff(buf, count);
 
+            /* EOF: byte 0x04 enviado por Ctrl+D */
+            if(n > 0 && buf[0] == 0x04){
+                return 0;
+            }
+
             /* Lectura bloqueante. */
             if(n == 0){
             

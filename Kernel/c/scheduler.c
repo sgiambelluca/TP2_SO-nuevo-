@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "process.h"
 #include "time.h"
+#include "memoryManager.h"
 
 // Leida desde interrupts.asm para decidir si hacer context switch voluntario
 volatile uint64_t force_switch = 0;
@@ -133,10 +134,10 @@ uint64_t* scheduler_tick(uint64_t* current_rsp){
     PCB* next = scheduler_next_ready();
 
     if(next == NULL){
-        /* 
+        /*
         ** Nadie listo: si el actual aun tiene un stack (no esta ZOMBIE/FREE),
         ** seguimos con el; sino quedamos con el RSP actual y la CPU hace hlt
-        ** hasta el proximo IRQ. 
+        ** hasta el proximo IRQ.
         */
         if((cur != NULL) && (cur->state == PROCESS_READY || cur->state == PROCESS_RUNNING)){
             cur->state = PROCESS_RUNNING;
@@ -147,16 +148,32 @@ uint64_t* scheduler_tick(uint64_t* current_rsp){
         return current_rsp;
     }
 
+    /* Reap ZOMBIE del proceso anterior si es necesario. */
+    if(cur != NULL && cur->state == PROCESS_ZOMBIE){
+        scheduler_remove(cur);
+        if(cur->stack_base != NULL){
+            mm_free(cur->stack_base);
+            cur->stack_base = NULL;
+        }
+        if(cur->argv != NULL){
+            mm_free(cur->argv);
+            cur->argv = NULL;
+        }
+        cur->rsp = NULL;
+        cur->state = PROCESS_FREE;
+        cur->pid = 0;
+    }
+
     next->state = PROCESS_RUNNING;
     process_set_current(next);
 
     return next->rsp;
 }
 
-/* 
+/*
 ** Implementación de yield (pausa). Llamada desde _irq128Handler cuando
 ** force_switch = 1 (sys_yield, sys_exit, sys_block sobre el proceso actual,
-** sys_read sin datos disponibles, etc.). 
+** sys_read sin datos disponibles, etc.).
 */
 uint64_t *scheduler_yield_impl(uint64_t *current_rsp){
     PCB* cur = process_current();
@@ -184,6 +201,23 @@ uint64_t *scheduler_yield_impl(uint64_t *current_rsp){
            Devolvemos el rsp actual; la CPU hara hlt hasta el proximo IRQ que
            desbloquee a alguien (idle deberia evitar este caso siempre). */
         return current_rsp;
+    }
+
+    /* Si el proceso que cede la CPU fue marcado ZOMBIE, liberarlo ahora que
+       ya tenemos a donde saltar. */
+    if(cur != NULL && cur->state == PROCESS_ZOMBIE){
+        scheduler_remove(cur);
+        if(cur->stack_base != NULL){
+            mm_free(cur->stack_base);
+            cur->stack_base = NULL;
+        }
+        if(cur->argv != NULL){
+            mm_free(cur->argv);
+            cur->argv = NULL;
+        }
+        cur->rsp = NULL;
+        cur->state = PROCESS_FREE;
+        cur->pid = 0;
     }
 
     next->state = PROCESS_RUNNING;

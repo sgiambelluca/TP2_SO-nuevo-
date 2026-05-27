@@ -35,6 +35,7 @@ static char buff[BUFF_LENGTH];
 static char registersBuff[REGISTERS_BUFFER_SIZE];
 static int shift = 0;
 static int caps = 0;
+static int ctrl = 0;
 static int buff_size = 0;
 static int start_index = 0;
 static int end_index = 0;
@@ -90,11 +91,27 @@ void handlePressedKey(void){
         shift = 1;
     } else if(scancode == (L_SHIFT | BREAK_CODE) || scancode == (R_SHIFT | BREAK_CODE)){
         shift = 0;
-    }else if(scancode == L_ARROW || scancode == R_ARROW || scancode == UP_ARROW || scancode == DOWN_ARROW || scancode == 0 || scancode > BREAK_CODE){
-        return;
     } else if(scancode == L_CONTROL){
+        ctrl = 1;
+        return;
+    } else if(scancode == (L_CONTROL | BREAK_CODE)){
+        ctrl = 0;
+        return;
+    } else if(scancode == 0x3B){  // F1: snapshot de registros
         storeSnapshot();
         boolRegisters = 1;
+        return;
+    } else if(scancode == L_ARROW || scancode == R_ARROW || scancode == UP_ARROW || scancode == DOWN_ARROW || scancode == 0 || scancode > BREAK_CODE){
+        return;
+    } else if(ctrl && scancode == 0x2E){  // Ctrl + C: matar foreground
+        process_kill_foreground();
+        return;
+    } else if(ctrl && scancode == 0x20){  // Ctrl + D: enviar EOF
+        writeBuff(0x04);
+        if(kbd_waiting_process != NULL){
+            kbd_waiting_process->state = PROCESS_READY;
+            kbd_waiting_process = NULL;
+        }
         return;
     } else if(scancode == CAPS_LOCK){
         caps = !caps;

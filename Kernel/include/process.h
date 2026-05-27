@@ -57,6 +57,7 @@ PCB* process_get(uint64_t pid);
 PCB* process_current(void);
 void process_set_current(PCB *p);
 void process_kill(uint64_t pid);
+void process_kill_foreground(void);
 void process_block(uint64_t pid);
 void process_unblock(uint64_t pid);
 void process_nice(uint64_t pid, uint8_t new_priority);
