@@ -37,6 +37,7 @@ static ProcEntry registry[] = {
     {"np_reader", (void *)np_reader_entry},
     {"mem", (void *)mem},
     {"kill", (void *)kill_cmd},
+    {"nice", (void *)nice_cmd},
     {0, 0}
 };
 

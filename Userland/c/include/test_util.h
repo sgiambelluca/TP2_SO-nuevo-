@@ -34,6 +34,7 @@ void     np_writer_entry(int argc, char *argv[]);
 void     np_reader_entry(int argc, char *argv[]);
 int64_t  mem(int argc, char *argv[]);
 int64_t  kill_cmd(int argc, char *argv[]);
+int64_t  nice_cmd(int argc, char *argv[]);
 
 /* Provisto por _loader.c */
 void    *memset(void *s, int32_t c, uint64_t n);
