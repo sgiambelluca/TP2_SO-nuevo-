@@ -21,27 +21,27 @@ Four top-level components, each with its own Makefile, assembled into one bootab
 
 - `Bootloader/` — Pure64 + BMFS (vendored). Loads packed kernel from disk.
 - `Toolchain/ModulePacker` — Host-side tool that concatenates `kernel.bin` + userland modules into `packedKernel.bin`.
-- `Kernel/` — Kernel proper. Linked at `0x100000` via `kernel.ld`, output as raw binary (not ELF). Entry: `loader.asm` → `kernelMain` → `initializeKernelBinary` → `main` → `scheduler_start` (never returns).
+- `Kernel/` — Kernel proper. Linked at `0x100000` via `kernel.ld`, output as raw binary (not ELF). Entry: `loader.asm` -> `kernelMain` -> `initializeKernelBinary` -> `main` -> `scheduler_start` (never returns).
 - `Userland/` — Two flat binary modules loaded by the kernel at fixed addresses:
-  - `0000-sampleCodeModule.bin` → `0x400000` (the shell + all user code)
-  - `0001-sampleDataModule.bin` → `0x500000`
+  - `0000-sampleCodeModule.bin` -> `0x400000` (the shell + all user code)
+  - `0001-sampleDataModule.bin` -> `0x500000`
 
 Kernel heap: `0x600000`, 8 MB (`HEAP_START` / `HEAP_SIZE` in `Kernel/c/kernel.c`).
 
 ## Adding a user-space command
 
-All user code lives in the **single** `0000-sampleCodeModule.bin`. To add a new standalone command (e.g. `cat`, `wc`):
+All user code lives in the **single** `0000-sampleCodeModule.bin`. To add a new standalone command (e.g. `wc`, `filter`):
 
 1. Implement the function with signature `int64_t cmd_name(int argc, char *argv[])` in a `Userland/c/*.c` file.
-2. Register it in `Userland/c/syscall.c` → `registry[]` (`name` → `fn`).
-3. Register the **name** in `Userland/c/userlib.c` → `is_child_command()` so the shell spawns it as a new process instead of running it as a built-in.
+2. Register it in `Userland/c/syscall.c` -> `registry[]` (`name` -> `fn`).
+3. Register the **name** in `Userland/c/userlib.c` -> `is_child_command()` so the shell spawns it as a new process instead of running it as a built-in.
 4. Update `help` text in `Userland/c/userlib.c` if desired.
 
 Current built-ins (`commands[]` in `userlib.c`) like `help`, `clear`, `ps`, etc. are still in-process. The enunciado requires **all** commands to be real processes; this is a known deviation.
 
 ## Syscalls
 
-The only kernel↔userland channel is `int 0x80`.  
+The only kernel<->userland channel is `int 0x80`.  
 To add a syscall:
 
 1. Bump `CANT_SYS` in `Kernel/include/defs.h`.
@@ -71,11 +71,42 @@ Run these **inside the running OS shell**. They must work as both foreground and
 
 ## Known missing pieces
 
-- **Keyboard shortcuts:** `Ctrl+C` (kill foreground) and `Ctrl+D` (EOF) are not wired in the keyboard driver.
-- **Required commands not yet implemented:** `cat`, `wc`, `filter`, `mvar`, `loop`, `kill`, `nice`, `block`, `mem`, `sh`.
+- **Keyboard shortcuts:** `Ctrl+C` (kill foreground) and `Ctrl+D` (EOF) **are implemented**.
+  - `Ctrl+C` kills the **newest** foreground process (highest PID), avoiding killing the shell when it is waiting for a child.
+  - `Ctrl+D` sends `0x04` (EOT) to the keyboard buffer; `fd_read` interprets it as EOF.
+- **Required commands not yet implemented:** `wc`, `filter`, `mvar`.
+  - Already implemented: `mem`, `kill`, `nice`, `block`, `loop`, `sh`, `cat`.
+- **Built-ins still in-process:** `help`, `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`, `bmFPS`, `bmCPU`, `bmMEM`, `bmKEY`, `+`, `-`.
 - Shell background (`&`) and two-stage pipes (`cmd1 | cmd2`) **are** already implemented in `Userland/c/userlib.c`.
+
+## Technical notes: Ctrl+C fix and ZOMBIE reaping
+
+This section documents critical kernel fixes applied to make `Ctrl+C` safe and prevent system freezes.
+
+### Problem
+Killing the foreground process from the keyboard ISR (`Ctrl+C`) caused the screen to freeze. The shell prompt never returned.
+
+### Root causes and fixes
+
+1. **`process_kill_foreground` killed the shell instead of the child.**
+   - *Fix:* It now searches for the foreground process with the **highest PID** (the most recent child) and only kills if `fg_count > 1`. File: `Kernel/c/process.c`.
+
+2. **`process_kill` freed the current process's stack from interrupt context.**
+   - *Fix:* When `p == current_process`, it only marks the process as `ZOMBIE`, releases FDs, and sets `force_switch = 1`. It **does not** call `mm_free(stack_base)` or `mm_free(argv)`. File: `Kernel/c/process.c`.
+
+3. **ZOMBIE reaping was missing in the scheduler.**
+   - *Fix:* Both `scheduler_tick` and `scheduler_yield_impl` now check `cur->state == PROCESS_ZOMBIE` **after** finding a valid `next` process. If true, they call `scheduler_remove(cur)`, free `stack_base` and `argv`, and mark the slot as `FREE`. File: `Kernel/c/scheduler.c`.
+
+4. **`process_waitpid` leaked memory when reclaiming a ZOMBIE child.**
+   - *Fix:* It now frees `stack_base` and `argv` before setting `child->state = PROCESS_FREE`. File: `Kernel/c/process.c`.
+
+5. **`process_exit` left the process in the scheduler queue.**
+   - *Fix:* Added `scheduler_remove(current_process)` in all exit paths. File: `Kernel/c/process.c`.
+
+6. **The keyboard ISR (`_irq01Handler`) ignored `force_switch`.**
+   - *Fix:* Before `popState`, it now checks `force_switch`. If set, it calls `scheduler_yield_impl` and swaps `rsp`, exactly like the syscall handler (`_irq128Handler`). File: `Kernel/asm/interrupts.asm`.
 
 ## Repo-specific gotchas
 
-- `AGENTS.md` is currently listed in `.gitignore` (line 17). Remove it so the file is tracked.
+- ~~`AGENTS.md` is currently listed in `.gitignore` (line 17). Remove it so the file is tracked.~~ (Fixed — `AGENTS.md` is now tracked.)
 - `compile.sh` validates that the container mounts the current directory at `/root`; if you moved the repo, recreate the container.
