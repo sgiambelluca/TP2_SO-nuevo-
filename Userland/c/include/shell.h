@@ -6,6 +6,8 @@
 #define CURSOR '_'
 #define STDIN  0
 #define STDOUT 1
+#define TTY_RAW   0
+#define TTY_COOKED 1
 #define WELCOME "Bienvenido al MASS OS!\n"
 #define BUFF_LENGTH 100
 

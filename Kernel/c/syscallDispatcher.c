@@ -286,6 +286,12 @@ int64_t sys_pipe_setup(uint64_t pid, uint64_t stdio_fd, uint64_t target){
     return 0;
 }
 
+int64_t sys_tty_mode(uint64_t mode){
+    int prev = tty_get_mode();
+    tty_set_mode((int)mode);
+    return (int64_t)prev;
+}
+
 /* Tabla de syscalls */
 void * syscalls[CANT_SYS] = {
     &sys_registers,         // 0
@@ -326,4 +332,5 @@ void * syscalls[CANT_SYS] = {
     &sys_close,             // 35
     &sys_pipe_open,         // 36
     &sys_pipe_setup,        // 37
+    &sys_tty_mode,          // 38
 };

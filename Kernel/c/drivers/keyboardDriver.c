@@ -42,6 +42,26 @@ static int end_index = 0;
 static int boolRegisters = 0;
 static void storeSnapshot(void);
 
+/* Estado de terminal cooked mode */
+int tty_mode = TTY_RAW;
+char tty_line[256];
+int tty_line_len = 0;
+int tty_line_ready = 0;
+int tty_eof = 0;
+
+int tty_get_mode(void){
+    return tty_mode;
+}
+
+void tty_set_mode(int mode){
+    tty_mode = mode;
+    if(mode == TTY_RAW){
+        tty_line_len = 0;
+        tty_line_ready = 0;
+        tty_eof = 0;
+    }
+}
+
 // Inserta un caracter en el buffer circular de teclado
 void writeBuff(unsigned char c){
     buff[end_index] = c;
@@ -107,22 +127,56 @@ void handlePressedKey(void){
         process_kill_foreground();
         return;
     } else if(ctrl && scancode == 0x20){  // Ctrl + D: enviar EOF
-        writeBuff(0x04);
-        if(kbd_waiting_process != NULL){
+        if(tty_mode == TTY_COOKED && kbd_waiting_process != NULL){
+            if(tty_line_len > 0){
+                tty_line_ready = 1;
+            } else {
+                tty_eof = 1;
+            }
             kbd_waiting_process->state = PROCESS_READY;
             kbd_waiting_process = NULL;
+        } else {
+            writeBuff(0x04);
+            if(kbd_waiting_process != NULL){
+                kbd_waiting_process->state = PROCESS_READY;
+                kbd_waiting_process = NULL;
+            }
         }
         return;
     } else if(scancode == CAPS_LOCK){
         caps = !caps;
     } else if(!(scancode & BREAK_CODE)){
         char c = kbd_manager[(shift + caps) % 2][scancode];
-        writeBuff(c);
 
-        // Despertar al proceso que esperaba input
-        if (kbd_waiting_process != NULL) {
-            kbd_waiting_process->state = PROCESS_READY;
-            kbd_waiting_process = NULL;
+        if(tty_mode == TTY_COOKED && kbd_waiting_process != NULL){
+            if(c == '\n'){
+                videoPutChar(c, 0xFFFFFF);
+                tty_line[tty_line_len++] = c;
+                tty_line_ready = 1;
+                ncPrint("[KBD] ENTER, len=");
+                ncPrintDec(tty_line_len);
+                ncNewline();
+                kbd_waiting_process->state = PROCESS_READY;
+                kbd_waiting_process = NULL;
+            } else if(c == '\b'){
+                if(tty_line_len > 0){
+                    tty_line_len--;
+                    videoPutChar('\b', 0xFFFFFF);
+                }
+            } else {
+                if(tty_line_len < (int)sizeof(tty_line) - 1){
+                    videoPutChar(c, 0xFFFFFF);
+                    tty_line[tty_line_len++] = c;
+                }
+            }
+        } else {
+            writeBuff(c);
+
+            // Despertar al proceso que esperaba input
+            if(kbd_waiting_process != NULL){
+                kbd_waiting_process->state = PROCESS_READY;
+                kbd_waiting_process = NULL;
+            }
         }
     }
 }

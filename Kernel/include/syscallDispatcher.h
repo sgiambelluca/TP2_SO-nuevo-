@@ -57,4 +57,7 @@ int64_t  sys_pipe_open(uint64_t name, uint64_t fd_array);
 // Syscall 37 (pipe setup para pipes entre comandos)
 int64_t  sys_pipe_setup(uint64_t pid, uint64_t stdio_fd, uint64_t target);
 
+// Syscall 38 (modo de terminal)
+int64_t  sys_tty_mode(uint64_t mode);
+
 #endif

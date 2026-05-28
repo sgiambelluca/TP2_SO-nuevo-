@@ -639,12 +639,16 @@ static void handle_pipe(char *left, char *right, int bg){
     sys_close((uint64_t)fds[0]);
     sys_close((uint64_t)fds[1]);
 
+    if(!bg){
+        sys_tty_mode(TTY_COOKED);
+    }
     sys_unblock((uint64_t)pid1);
     sys_unblock((uint64_t)pid2);
 
     if(!bg){
         my_wait(pid1);
         my_wait(pid2);
+        sys_tty_mode(TTY_RAW);
     } else {
         shellPrintString("[");
         char tmp[16];
@@ -719,12 +723,16 @@ void processLine(char *buff, uint32_t *history_len){
         if(g_cmd_args)
             argc = parse_args((char *)g_cmd_args, argv, 15);
 
+        if(!bg){
+            sys_tty_mode(TTY_COOKED);
+        }
         int64_t pid = my_create_process_fg(buff, (uint64_t)argc, argv, bg ? 0 : 1);
         if(pid < 0){
             shellPrintString("Error creando proceso\n");
         } else if(!bg){
             /* Foreground: esperar a que termine */
             my_wait(pid);
+            sys_tty_mode(TTY_RAW);
         } else {
             /* Background: imprimir PID */
             shellPrintString("[");

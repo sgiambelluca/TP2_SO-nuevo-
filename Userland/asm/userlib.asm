@@ -37,6 +37,7 @@ GLOBAL sys_dup2
 GLOBAL sys_close
 GLOBAL sys_pipe_open
 GLOBAL sys_pipe_setup
+GLOBAL sys_tty_mode
 
 section .text
 
@@ -147,6 +148,11 @@ sys_pipe_open:
 
 sys_pipe_setup:
     mov rax, 37
+    int 0x80
+    ret
+
+sys_tty_mode:
+    mov rax, 38
     int 0x80
     ret
 

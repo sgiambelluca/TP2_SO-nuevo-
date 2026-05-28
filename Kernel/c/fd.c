@@ -5,6 +5,7 @@
 #include "videoDriver.h"
 #include "scheduler.h"
 #include "pipe.h"
+#include "naiveConsole.h"
 
 /* Codigo de retorno para indicar que la lectura bloqueo al proceso. */
 #define READ_BLOCKED ((uint64_t)-1)
@@ -118,7 +119,43 @@ uint64_t fd_read(FD* d, char* buf, uint64_t count, struct PCB* cur){
                 return 0;
             }
 
-            /* Leer del buffer de teclado. */
+            /* Modo cooked: entregar lineas completas */
+            if(tty_get_mode() == TTY_COOKED){
+                if(tty_eof && tty_line_len == 0){
+                    tty_eof = 0;
+                    return 0;
+                }
+                if(tty_line_ready || tty_eof){
+                    uint64_t to_copy = (uint64_t)tty_line_len;
+                    if(to_copy > count){
+                        to_copy = count;
+                    }
+                    for(uint64_t i = 0; i < to_copy; i++){
+                        buf[i] = tty_line[i];
+                    }
+                    ncPrint("[FD] deliver ");
+                    ncPrintDec(to_copy);
+                    ncPrint(" bytes\n");
+                    if(to_copy == (uint64_t)tty_line_len){
+                        tty_line_len = 0;
+                        tty_line_ready = 0;
+                        tty_eof = 0;
+                    } else {
+                        for(int i = 0; i < tty_line_len - (int)to_copy; i++){
+                            tty_line[i] = tty_line[i + (int)to_copy];
+                        }
+                        tty_line_len -= (int)to_copy;
+                    }
+                    return to_copy;
+                }
+                /* No hay linea lista: bloquear */
+                kbd_set_waiting(cur);
+                cur->state = PROCESS_BLOCKED;
+                force_switch = 1;
+                return READ_BLOCKED;
+            }
+
+            /* Modo raw: leer del buffer de teclado */
             uint64_t n = readKeyBuff(buf, count);
 
             /* EOF: byte 0x04 enviado por Ctrl+D */
@@ -128,15 +165,9 @@ uint64_t fd_read(FD* d, char* buf, uint64_t count, struct PCB* cur){
 
             /* Lectura bloqueante. */
             if(n == 0){
-            
-                /* Bloquea el proceso actual y lo notifica cuando haya datos disponibles. */
                 kbd_set_waiting(cur);
                 cur->state = PROCESS_BLOCKED;
-
-                /* Forzar cambio de contexto para que se ejecute otro proceso. */
                 force_switch = 1;
-
-                /* Indica que la lectura bloqueó al proceso. */
                 return READ_BLOCKED;
             }
 
