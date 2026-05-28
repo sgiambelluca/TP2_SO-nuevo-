@@ -28,10 +28,20 @@ typedef struct Pipe {
 
 static Pipe pipe_table[MAX_PIPES];
 
-/* Agrega un proceso a la cola circular (PID). */
+/* Agrega un proceso a la cola circular (PID).
+   Evita encolar el mismo PID mas de una vez. */
 static void queue_push(uint64_t* queue, int* tail, int* count, uint64_t pid){
     if(*count >= MAX_PROCESSES){
         return;
+    }
+
+    int head = (*tail + MAX_PROCESSES - *count) % MAX_PROCESSES;
+    int idx = head;
+    for(int i = 0; i < *count; i++){
+        if(queue[idx] == pid){
+            return;
+        }
+        idx = (idx + 1) % MAX_PROCESSES;
     }
 
     /* Agregar el proceso a la cola. */

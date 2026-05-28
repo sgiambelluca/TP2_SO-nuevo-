@@ -87,12 +87,9 @@ void fd_decref(uint64_t fd){
     
     if(d->refcount > 0){
         d->refcount--;
-    }
-    
-    if(d->type == FD_PIPE_READ){
-        pipe_close_read((Pipe *)d->data);
-    }else{
-        if(d->type == FD_PIPE_WRITE){
+        if(d->type == FD_PIPE_READ){
+            pipe_close_read((Pipe *)d->data);
+        } else if(d->type == FD_PIPE_WRITE){
             pipe_close_write((Pipe *)d->data);
         }
     }

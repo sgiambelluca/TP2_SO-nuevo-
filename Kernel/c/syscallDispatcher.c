@@ -163,7 +163,11 @@ int64_t sys_block(uint64_t pid) {
     if(p->state == PROCESS_BLOCKED && p->waiting_for != 0){
         return -1;
     }
-    process_block(pid);
+    if(p->state == PROCESS_BLOCKED){
+        process_unblock(pid);
+    } else {
+        process_block(pid);
+    }
     return 0;
 }
 

@@ -375,9 +375,9 @@ void process_kill(uint64_t pid){
     }
 }
 
-/* Alterna el estado del proceso entre BLOCKED y READY.
-   No permite desbloquear un proceso que esta bloqueado internamente
-   por una syscall (ej. waitpid), para no romper la sincronizacion. */
+/* Bloquea el proceso especificado.
+   Es idempotente: si ya esta bloqueado, no hace nada.
+   No bloquea un proceso que esta bloqueado internamente por waitpid. */
 void process_block(uint64_t pid){
     PCB* p = process_get(pid);
 
@@ -385,18 +385,13 @@ void process_block(uint64_t pid){
         return;
     }
 
-    if(p->state == PROCESS_BLOCKED && p->waiting_for != 0){
-        /* Proceso bloqueado en waitpid: ignorar toggle externo. */
+    if(p->state == PROCESS_BLOCKED){
         return;
     }
 
-    if(p->state == PROCESS_BLOCKED){
-        p->state = PROCESS_READY;
-    } else {
-        p->state = PROCESS_BLOCKED;
-        if(p == current_process){
-            force_switch = 1;
-        }
+    p->state = PROCESS_BLOCKED;
+    if(p == current_process){
+        force_switch = 1;
     }
 }
 
