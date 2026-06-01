@@ -11,6 +11,7 @@
 #include "semaphore.h"
 #include "fd.h"
 #include "pipe.h"
+#include "naiveConsole.h"
 
 // ─── Syscalls de memoria (16-18) ──────────────────────────────────────────────
 

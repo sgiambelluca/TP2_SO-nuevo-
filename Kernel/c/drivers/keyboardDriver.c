@@ -55,11 +55,9 @@ int tty_get_mode(void){
 
 void tty_set_mode(int mode){
     tty_mode = mode;
-    if(mode == TTY_RAW){
-        tty_line_len = 0;
-        tty_line_ready = 0;
-        tty_eof = 0;
-    }
+    tty_line_len = 0;
+    tty_line_ready = 0;
+    tty_eof = 0;
 }
 
 // Inserta un caracter en el buffer circular de teclado
@@ -153,9 +151,6 @@ void handlePressedKey(void){
                 videoPutChar(c, 0xFFFFFF);
                 tty_line[tty_line_len++] = c;
                 tty_line_ready = 1;
-                ncPrint("[KBD] ENTER, len=");
-                ncPrintDec(tty_line_len);
-                ncNewline();
                 kbd_waiting_process->state = PROCESS_READY;
                 kbd_waiting_process = NULL;
             } else if(c == '\b'){

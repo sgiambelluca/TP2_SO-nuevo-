@@ -291,7 +291,7 @@ _exception6Handler:
 _irq128Handler:
 	pushState
 
-	cmp rax, 38                 ; CANT_SYS = 38
+	cmp rax, 39                 ; CANT_SYS = 39 (índices 0..38 válidos)
 	jge .invalid_syscall
 
 	call [syscalls + rax * 8]

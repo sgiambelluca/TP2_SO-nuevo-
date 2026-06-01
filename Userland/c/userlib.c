@@ -724,6 +724,7 @@ void processLine(char *buff, uint32_t *history_len){
             argc = parse_args((char *)g_cmd_args, argv, 15);
 
         if(!bg){
+            shellPrintString("\b"); /* Ocultar cursor '_' antes de ceder foreground */
             sys_tty_mode(TTY_COOKED);
         }
         int64_t pid = my_create_process_fg(buff, (uint64_t)argc, argv, bg ? 0 : 1);

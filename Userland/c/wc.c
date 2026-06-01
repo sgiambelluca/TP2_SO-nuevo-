@@ -47,6 +47,7 @@ int64_t wc(int argc, char *argv[]) {
 
     char num_buf[32];
 
+    shellNewline();
     shellPrintString("Lineas: ");
     num_to_str(lines, num_buf, 10);
     shellPrintString(num_buf);

@@ -133,9 +133,6 @@ uint64_t fd_read(FD* d, char* buf, uint64_t count, struct PCB* cur){
                     for(uint64_t i = 0; i < to_copy; i++){
                         buf[i] = tty_line[i];
                     }
-                    ncPrint("[FD] deliver ");
-                    ncPrintDec(to_copy);
-                    ncPrint(" bytes\n");
                     if(to_copy == (uint64_t)tty_line_len){
                         tty_line_len = 0;
                         tty_line_ready = 0;
