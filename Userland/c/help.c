@@ -1,0 +1,39 @@
+#include <stdint.h>
+#include "include/shell.h"
+#include "include/userlib.h"
+#include "include/test_util.h"
+
+int64_t help(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+
+    shellPrintString("Comandos disponibles: \n");
+    shellPrintString("help                      ->   muestra la lista de comandos.\n");
+    shellPrintString("clear                     ->   limpia la pantalla.\n");
+    shellPrintString("+                         ->   aumenta tamano de fuente.\n");
+    shellPrintString("-                         ->   disminuye tamano de fuente.\n");
+    shellPrintString("printTime                 ->   imprime la hora actual.\n");
+    shellPrintString("printDate                 ->   imprime la fecha actual.\n");
+    shellPrintString("registers                 ->   imprime registros.\n");
+    shellPrintString("testDiv0                  ->   division por cero.\n");
+    shellPrintString("invOp                     ->   instruccion invalida.\n");
+    shellPrintString("playBeep                  ->   reproduce un beep.\n");
+    shellPrintString("test_mm <max> [&]         ->   test de memory manager. (foreground/background)\n");
+    shellPrintString("test_processes <max> [&]  ->   test de procesos. (foreground/background)\n");
+    shellPrintString("test_prio <target> [&]    ->   test de prioridades. (foreground/background)\n");
+    shellPrintString("test_sync <n> <sem> [&]   ->   test de sincronizacion. (foreground/background)\n");
+    shellPrintString("test_named_pipe           ->   test de pipes con nombre. \n");
+    shellPrintString("mem                       ->   muestra estado de la memoria.\n");
+    shellPrintString("kill <pid>                ->   termina el proceso indicado.\n");
+    shellPrintString("nice <pid> <prio>         ->   cambia prioridad (1-5).\n");
+    shellPrintString("block <pid>               ->   alterna estado BLOCKED/READY.\n");
+    shellPrintString("loop                      ->   imprime PID periodicamente.\n");
+    shellPrintString("sh                        ->   nueva shell interactiva.\n");
+    shellPrintString("cat                       ->   copia stdin a stdout.\n");
+    shellPrintString("wc                        ->   cuenta lineas, palabras y bytes de stdin.\n");
+    shellPrintString("mvar <esc> <lec>          ->   MVar: escritores/lectores sincronizados.\n");
+    shellPrintString("filter                    ->   filtra vocales del stdin.\n");
+    shellPrintString("ps                        ->   lista de procesos activos.\n");
+
+    return 0;
+}

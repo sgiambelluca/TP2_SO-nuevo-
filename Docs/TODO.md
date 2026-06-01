@@ -60,7 +60,8 @@ Estos leen de `fd[0]` y escriben en `fd[1]`; la shell ya maneja `|` y `sys_pipe_
 El enunciado requiere que **todos** los comandos sean procesos; actualmente los tests, `np_writer`/`np_reader`, y los comandos core (`mem`, `kill`, `nice`, `block`, `loop`, `sh`, `cat`, `wc`, `filter`, `mvar`) ya lo son. Refactorizar la shell (`Userland/c/userlib.c` -> `commands[]` y `processLine`) para que:
 
 - [ ] Ningun comando se ejecute in-process.
-- [ ] `help`, `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`, `bmFPS`, `bmCPU`, `bmMEM`, `bmKEY` (+ y -) se conviertan en entry points de procesos registrados.
+- [x] `help` (hecho)
+- [ ] `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`, `+`, `-` se conviertan en entry points de procesos registrados.
 - [ ] La shell quede reducida a: leer linea, parsear `&` / `|`, spawnear proceso(s), `waitpid` si es foreground.
 - [ ] Actualizar `help` para reflejar que comandos existen y sus parametros.
 

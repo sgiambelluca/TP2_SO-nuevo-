@@ -6,7 +6,6 @@
 #include "include/test_util.h"
 
 static Command commands[] = {
-    {"help", help},
     {"clear", clear},
     {"printTime", printTime},
     {"printDate", printDate},
@@ -14,10 +13,6 @@ static Command commands[] = {
     {"testDiv0", divideByZero},
     {"invOp", invOp},
     {"playBeep", playBeep},
-    {"bmFPS", bmFPS},
-    {"bmCPU", bmCPU},
-    {"bmMEM", bmMEM},
-    {"bmKEY", bmKEY},
     {"test_mm", test_mm_cmd},
     {"test_processes", test_processes_cmd},
     {"test_prio", test_prio_cmd},
@@ -86,141 +81,6 @@ uint64_t num_to_str(uint64_t value, char * dest, int base){
     }
     dest[pos] = '\0';
     return (uint64_t)pos;
-}
-
-// Benchmark de CPU (operaciones int/float)
-void bmCPU(){
-    const uint32_t N = 1000000u;
-    uint64_t ticks = sys_ticks();
-
-    uint64_t result = 0;
-    double float_result = 0.0;
-
-    for(uint32_t i = 0; i < N; ++i){
-        result += (uint64_t)i * 7ull;
-        result = result % 2147483647ull;
-
-        float_result += (double)i * 3.14159;
-        if ((i % 100000u) == 0 && i != 0) {
-            float_result *= 0.5;
-        }
-    }
-
-    uint64_t end_ticks = sys_ticks();
-    uint64_t delta = end_ticks - ticks;
-
-    shellPrintString("Tiempo: ");
-
-    char timeBuff[32];
-    num_to_str(delta, timeBuff, 10);
-    shellPrintString(timeBuff);
-    shellPrintString(" ticks\n");
-
-    if(delta > 0){
-        /* promote N to 64-bit before division to avoid surprises */
-        uint64_t ops_per_tick = ((uint64_t)N) / delta;
-        shellPrintString("Operaciones por tick: ");
-        num_to_str(ops_per_tick, timeBuff, 10);
-        shellPrintString(timeBuff);
-        shellPrintString("\n");
-    } else {
-        shellPrintString("Elapsed ticks = 0, no se puede calcular ops/tick.\n");
-    }
-
-    return;
-}
-
-// Benchmark de FPS aproximado (limpia pantalla en loop)
-void bmFPS(){    
-    uint64_t ticks = sys_ticks();
-    uint64_t count = 0;
-    /* 18 ticks ~= 1 second on many systems that emulate BIOS ticks */
-    uint64_t duration = 18 * 7; /* ~3 seconds */
-
-    shellPrintString("Inicio de test.\n");
-    /* busy loop that only clears the screen and increments counter */
-    while((sys_ticks() - ticks) < duration){
-        sys_clear();
-        count++;
-    }
-
-    /* count iterations over ~7 seconds -> approximate frames per second */
-    uint64_t fps = count / 7;
-    shellPrintString("FPS: ");
-
-    char fpsBuff[BM_BUFF];
-    num_to_str(fps, fpsBuff, 10);
-    shellPrintString(fpsBuff);
-    shellPrintString("\n");
-}
-
-// Benchmark simple de memoria (llenado/copia/checksum)
-void bmMEM(){
-    char buffer[4 * KB];
-    uint64_t totalChecksum = 0;
-    uint64_t ticks = sys_ticks();
-
-    for(int iteration = 0; iteration < 10000; iteration++){
-        for(int i = 0; i < 4 * KB; i++){
-            buffer[i] = (i + iteration) % 256;
-        }
-
-        /* use 64-bit checksum to avoid truncation issues */
-        uint64_t checksum = 0;
-        for(int i = 0; i < 4 * KB; i++){
-            checksum += (unsigned char)buffer[i];
-            checksum = checksum % 1000000ULL;
-        }
-
-        for(int i = 0; i < 2 * KB; i++){
-            buffer[i + 2 * KB] = buffer[i];
-        }
-
-        /* make checksum observable to prevent over-optimization */
-        totalChecksum += checksum;
-    }
-
-    uint64_t finalTicks = sys_ticks();
-    uint64_t delta = finalTicks - ticks;
-
-    shellPrintString("Tiempo: ");
-
-    char buff[BM_BUFF];
-    num_to_str(delta, buff, 10);
-    shellPrintString(buff);
-    shellPrintString(" ticks\n");
-
-    if(delta > 0){
-        /* compute operations using 64-bit arithmetic to be safe */
-        uint64_t operations = (uint64_t)10000 * (uint64_t)(4 * KB) * 3ULL;
-        uint64_t operationsPerCycle = operations / delta;
-        shellPrintString("Operaciones por tick: ");
-        num_to_str(operationsPerCycle, buff, 10);
-        shellPrintString(buff);
-        shellPrintString("\n");
-    }
-
-    /* Print a checksum summary to ensure computations aren't optimized away */
-    shellPrintString("Checksum: ");
-    num_to_str(totalChecksum, buff, 10);
-    shellPrintString(buff);
-    shellPrintString("\n");
-}
-
-// Mide tiempo hasta presionar una tecla
-void bmKEY(){
-    shellPrintString("Presione cualquier tecla: \n");
-    uint64_t ticks = sys_ticks();
-    getchar();
-
-    uint64_t finalTicks = sys_ticks();
-    uint64_t delta = finalTicks - ticks;
-    shellPrintString("Tiempo: ");
-    char buff[BM_BUFF];
-
-    num_to_str(delta, buff, 10);
-    shellPrintString(buff);
-    shellPrintString(" ticks\n");
 }
 
 // Reproduce una secuencia corta de beeps
@@ -306,41 +166,6 @@ void shellIncreaseFontSize(){
 void shellDecreaseFontSize(){ 
     sys_decrease_fontsize(); 
     redrawFont();
-}
-
-// Lista de comandos disponibles
-void help(){
-    shellPrintString("Comandos disponibles: \n");
-    shellPrintString("help                      ->   muestra la lista de comandos.\n");
-    shellPrintString("clear                     ->   limpia la pantalla.\n");
-    shellPrintString("+                         ->   aumenta tamaño de fuente.\n");
-    shellPrintString("-                         ->   disminuye tamaño de fuente.\n");
-    shellPrintString("printTime                 ->   imprime la hora actual.\n");
-    shellPrintString("printDate                 ->   imprime la fecha actual.\n");
-    shellPrintString("registers                 ->   imprime registros.\n");
-    shellPrintString("testDiv0                  ->   division por cero.\n");
-    shellPrintString("invOp                     ->   instruccion invalida.\n");
-    shellPrintString("playBeep                  ->   reproduce un beep.\n");
-    shellPrintString("bmFPS                     ->   benchmark de FPS.\n");
-    shellPrintString("bmCPU                     ->   benchmark de CPU.\n");
-    shellPrintString("bmMEM                     ->   benchmark de MEM.\n");
-    shellPrintString("bmKEY                     ->   benchmark de teclado.\n");
-    shellPrintString("test_mm <max> [&]         ->   test de memory manager. (foreground/background)\n");
-    shellPrintString("test_processes <max> [&]  ->   test de procesos. (foreground/background)\n");
-    shellPrintString("test_prio <target> [&]    ->   test de prioridades. (foreground/background)\n");
-    shellPrintString("test_sync <n> <sem> [&]   ->   test de sincronizacion. (foreground/background)\n");
-    shellPrintString("test_named_pipe           ->   test de pipes con nombre. \n");
-    shellPrintString("mem                       ->   muestra estado de la memoria.\n");
-    shellPrintString("kill <pid>                ->   termina el proceso indicado.\n");
-    shellPrintString("nice <pid> <prio>         ->   cambia prioridad (1-5).\n");
-    shellPrintString("block <pid>               ->   alterna estado BLOCKED/READY.\n");
-    shellPrintString("loop                      ->   imprime PID periodicamente.\n");
-    shellPrintString("sh                        ->   nueva shell interactiva.\n");
-    shellPrintString("cat                       ->   copia stdin a stdout.\n");
-    shellPrintString("wc                        ->   cuenta lineas, palabras y bytes de stdin.\n");
-    shellPrintString("mvar <esc> <lec>          ->   MVar: escritores/lectores sincronizados.\n");
-    shellPrintString("filter                    ->   filtra vocales del stdin.\n");
-    shellPrintString("ps                        ->   lista de procesos activos.\n");
 }
 
 // Limpia la pantalla
@@ -506,7 +331,7 @@ char getchar(){
 static int is_child_command(const char *name){
     static const char *child_cmds[] = {
         "test_mm", "test_processes", "test_prio", "test_sync",
-        "np_writer", "np_reader", "mem", "kill", "nice", "block", "loop", "sh", "cat", "wc", "mvar", "filter", NULL
+        "np_writer", "np_reader", "mem", "kill", "nice", "block", "loop", "sh", "cat", "wc", "mvar", "filter", "help", NULL
     };
     for(int i = 0; child_cmds[i]; i++)
         if(strcmp(name, child_cmds[i]) == 0)

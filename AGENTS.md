@@ -76,7 +76,7 @@ Run these **inside the running OS shell**. They must work as both foreground and
   - `Ctrl+D` sends `0x04` (EOT) to the keyboard buffer; `fd_read` interprets it as EOF.
 - **Required commands not yet implemented:** none.
   - Already implemented: `mem`, `kill`, `nice`, `block`, `loop`, `sh`, `cat`, `wc`, `filter`, `mvar`.
-- **Built-ins still in-process:** `help`, `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`, `bmFPS`, `bmCPU`, `bmMEM`, `bmKEY`, `+`, `-`.
+- **Built-ins still in-process:** `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`, `+`, `-`.
 - Shell background (`&`) and two-stage pipes (`cmd1 | cmd2`) **are** already implemented in `Userland/c/userlib.c`.
 
 ## Technical notes: Ctrl+C fix and ZOMBIE reaping

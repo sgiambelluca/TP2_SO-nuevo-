@@ -47,6 +47,7 @@ static ProcEntry registry[] = {
     {"mvar_writer", (void *)mvar_writer},
     {"mvar_reader", (void *)mvar_reader},
     {"filter", (void *)filter},
+    {"help", (void *)help},
     {0, 0}
 };
 

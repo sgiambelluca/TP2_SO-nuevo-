@@ -13,7 +13,6 @@
 #define REGSBUFF 500
 #define REDRAW_BUFF 4096
 #define KB 1024
-#define BM_BUFF 20
 #define NOTE_C4  262
 #define NOTE_CS4 277
 #define NOTE_D4  294
@@ -117,7 +116,6 @@ void gen_invalid_opcode(void);
 const char *cmd_args(void);
 
 // ─── Comandos de shell ────────────────────────────────────────────────────────
-void help(void);
 void clear(void);
 void registers(void);
 void divideByZero(void);
@@ -130,10 +128,6 @@ void printTimeAndDate(uint8_t* buff, char separator);
 void shellIncreaseFontSize(void);
 void shellDecreaseFontSize(void);
 void redrawFont(void);
-void bmMEM(void);
-void bmCPU(void);
-void bmFPS(void);
-void bmKEY(void);
 void ps(void);
 
 #endif

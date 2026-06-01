@@ -89,7 +89,6 @@ Al bootear se inicia una shell interactiva. Comandos disponibles:
 | `registers` | Dump de registros de la última excepción |
 | `testDiv0` / `invOp` | Disparan excepción #DE / #UD |
 | `playBeep` | Toca una melodía por el parlante |
-| `bmFPS` / `bmCPU` / `bmMEM` / `bmKEY` | Benchmarks |
 | `testMM` | Test suite del memory manager (ver abajo) |
 | `ps` | Lista procesos activos |
 | `+` / `-` | Aumenta / disminuye tamaño de fuente |
