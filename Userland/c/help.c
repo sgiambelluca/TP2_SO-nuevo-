@@ -9,15 +9,15 @@ int64_t help(int argc, char *argv[]) {
 
     shellPrintString("Comandos disponibles: \n");
     shellPrintString("help                      ->   muestra la lista de comandos.\n");
-    shellPrintString("clear                     ->   limpia la pantalla.\n");
-    shellPrintString("+                         ->   aumenta tamano de fuente.\n");
-    shellPrintString("-                         ->   disminuye tamano de fuente.\n");
-    shellPrintString("printTime                 ->   imprime la hora actual.\n");
-    shellPrintString("printDate                 ->   imprime la fecha actual.\n");
-    shellPrintString("registers                 ->   imprime registros.\n");
-    shellPrintString("testDiv0                  ->   division por cero.\n");
-    shellPrintString("invOp                     ->   instruccion invalida.\n");
-    shellPrintString("playBeep                  ->   reproduce un beep.\n");
+    shellPrintString("clear                     ->   limpia la pantalla. (built-in) \n");
+    shellPrintString("+                         ->   aumenta tamano de fuente. (built-in) \n");
+    shellPrintString("-                         ->   disminuye tamano de fuente. (built-in) \n");
+    shellPrintString("printTime                 ->   imprime la hora actual. (built-in) \n");
+    shellPrintString("printDate                 ->   imprime la fecha actual. (built-in) \n");
+    shellPrintString("registers                 ->   imprime registros. (built-in) \n");
+    shellPrintString("testDiv0                  ->   division por cero. (built-in) \n");
+    shellPrintString("invOp                     ->   instruccion invalida. (built-in) \n");
+    shellPrintString("playBeep                  ->   reproduce un beep. (built-in) \n");
     shellPrintString("test_mm <max> [&]         ->   test de memory manager. (foreground/background)\n");
     shellPrintString("test_processes <max> [&]  ->   test de procesos. (foreground/background)\n");
     shellPrintString("test_prio <target> [&]    ->   test de prioridades. (foreground/background)\n");
