@@ -84,7 +84,7 @@ uint64_t num_to_str(uint64_t value, char * dest, int base){
 }
 
 // Reproduce una secuencia corta de beeps
-void playBeep(){
+void playBeep(void){
     sys_beep(NOTE_E5, EIGHTH);
     sys_beep(NOTE_DS5, EIGHTH);
     sys_beep(NOTE_E5, EIGHTH);
@@ -128,7 +128,7 @@ void playBeep(){
 }
 
 // Redibuja la pantalla luego de cambiar el tamaño de fuente
-void redrawFont(){
+void redrawFont(void){
     sys_clear(); 
 
     if(redrawLength == 0){
@@ -157,25 +157,25 @@ void redrawFont(){
 }
 
 // Aumenta tamaño de fuente y refresca contenido
-void shellIncreaseFontSize(){
+void shellIncreaseFontSize(void){
     sys_increase_fontsize(); 
     redrawFont();
 }
 
 // Disminuye tamaño de fuente y refresca contenido
-void shellDecreaseFontSize(){ 
+void shellDecreaseFontSize(void){ 
     sys_decrease_fontsize(); 
     redrawFont();
 }
 
 // Limpia la pantalla
-void clear(){
+void clear(void){
     sys_clear();
     redraw_reset();
 }
 
 // Provoca excepción de división por cero
-void divideByZero(){
+void divideByZero(void){
     clear();
     int x = 1;
     int y = 0;
@@ -184,12 +184,12 @@ void divideByZero(){
     (void)z;   // evitar warning de variable no usada (si no se dispara la excepción)
 }
 
-void invOp(){
+void invOp(void){
     gen_invalid_opcode();
 }
 
 // Imprime el snapshot de registros (CTRL para capturar)
-void registers(){
+void registers(void){
     char buffer[REGSBUFF];
 
     if(sys_registers(buffer)){
@@ -237,7 +237,7 @@ void printTimeAndDate(uint8_t* buff, char separator){
 }
 
 // Imprime hora local (UTC-3)
-void printTime(){
+void printTime(void){
     uint8_t timeBuff[3];
     sys_time(timeBuff);
     timeBuff[0] = adjustHour(timeBuff[0], -3);
@@ -245,7 +245,7 @@ void printTime(){
 }
 
 // Imprime fecha local considerando rollover por UTC-3
-void printDate(){
+void printDate(void){
     uint8_t timeBuff[3];
     uint8_t dateBuff[3];
 
@@ -318,7 +318,7 @@ uint64_t putchar(char c){
     return sys_write(STDOUT, buff, 1);
 }
 
-char getchar(){
+char getchar(void){
     char c;
     uint64_t n;
     while((n = sys_read(0, &c, 1)) == (uint64_t)-1)

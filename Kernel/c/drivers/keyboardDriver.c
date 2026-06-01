@@ -192,7 +192,7 @@ uint64_t copyRegistersBuffer(char * buff){
 }
 
 // Serializa los registros guardados por la ISR en formato legible
-void storeSnapshot(){
+void storeSnapshot(void){
     const char * regs[] = {"RAX: 0x", "RBX: 0x", "RCX: 0x", "RDX: 0x", "RBP: 0x", "RDI: 0x", "RSI: 0x",  
      "R8: 0x", "R9: 0x", "R10: 0x", "R11: 0x", "R12: 0x", "R13: 0x", "R14: 0x", "R15: 0x", "RIP: 0x", "CS: 0x", "RFLAGS: 0x", "RSP: 0x", "SS: 0x", 0};
 

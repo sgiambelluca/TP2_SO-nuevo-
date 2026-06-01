@@ -91,13 +91,13 @@ void endless_loop_print(int argc, char *argv[]){
 }
 
 /* printf mínimo. */
-static void print_uint(uint64_t v){
+static int print_uint(uint64_t v){
     char buf[21];
     int pos = 0;
 
     if(v == 0){
         putchar('0');
-        return;
+        return 1;
     }
 
     while(v){
@@ -105,29 +105,33 @@ static void print_uint(uint64_t v){
         v /= 10;
     }
 
+    int digits = pos;
     while(pos-- > 0){
         putchar(buf[pos]);
     }
+    return digits;
 }
 
-static void print_int(int64_t v){
+static int print_int(int64_t v){
     if(v < 0){
         putchar('-');
-        print_uint((uint64_t)(-v));
-    }else{
-        print_uint((uint64_t)v);
+        return 1 + print_uint((uint64_t)(-v));
     }
+    return print_uint((uint64_t)v);
 }
 
-static void print_str(const char *s){
+static int print_str(const char *s){
     if(!s){
         shellPrintString("(null)");
-        return;
+        return 6;
     }
 
+    int n = 0;
     while(*s){
         putchar(*s++);
+        n++;
     }
+    return n;
 }
 
 int printf(const char *fmt, ...){
@@ -144,13 +148,13 @@ int printf(const char *fmt, ...){
         fmt++;
         switch (*fmt) {
             case 'd':
-                print_int((int64_t)va_arg(args, int));
+                count += print_int((int64_t)va_arg(args, int));
                 break;
             case 'u':
-                print_uint((uint64_t)va_arg(args, unsigned int));
+                count += print_uint((uint64_t)va_arg(args, unsigned int));
                 break;
             case 's':
-                print_str(va_arg(args, const char *));
+                count += print_str(va_arg(args, const char *));
                 break;
             case 'c':
                 putchar((char)va_arg(args, int));
@@ -163,11 +167,10 @@ int printf(const char *fmt, ...){
             default:
                 putchar('%');
                 putchar(*fmt);
-                count++;
+                count += 2;
                 break;
         }
         fmt++;
-        count++;
     }
 
     va_end(args);

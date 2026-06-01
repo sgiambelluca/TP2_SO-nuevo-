@@ -123,6 +123,6 @@ void shellPutchar(char c, uint64_t fd){
 }
 
 // Salto de línea
-void shellNewline(){
+void shellNewline(void){
     shellPutchar('\n', STDOUT);
 }

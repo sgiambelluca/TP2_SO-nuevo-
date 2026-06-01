@@ -41,7 +41,7 @@ void time(unsigned char *buff){
 }
 
 // Incrementa el contador en cada interrupción del PIT
-void timer_handler(){
+void timer_handler(void){
 	ticks++;
 }
 
