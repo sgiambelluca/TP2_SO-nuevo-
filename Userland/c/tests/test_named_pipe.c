@@ -1,7 +1,7 @@
-#include "include/syscall.h"
-#include "include/test_util.h"
-#include "include/userlib.h"
-#include "include/shell.h"
+#include "../include/syscall.h"
+#include "../include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
 
 /* Nombre del pipe nombrado usado para IPC entre escritor y lector */
 #define NP_PIPE_NAME "test_np"

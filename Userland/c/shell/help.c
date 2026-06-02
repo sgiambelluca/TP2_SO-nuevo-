@@ -1,7 +1,7 @@
 #include <stdint.h>
-#include "include/shell.h"
-#include "include/userlib.h"
-#include "include/test_util.h"
+#include "../include/shell.h"
+#include "../include/userlib.h"
+#include "../include/test_util.h"
 
 int64_t help(int argc, char *argv[]) {
     (void)argc;

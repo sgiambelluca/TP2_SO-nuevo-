@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "../c/include/userlib.h"
-#include "../c/include/shell.h"
-#include "../c/include/syscall.h"
-#include "include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
+#include "../include/syscall.h"
+#include "../include/test_util.h"
 
 static Command commands[] = {
     {"clear", clear},

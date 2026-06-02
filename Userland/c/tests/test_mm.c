@@ -1,7 +1,7 @@
-#include "include/syscall.h"
-#include "include/test_util.h"
-#include "include/userlib.h"
-#include "include/shell.h"
+#include "../include/syscall.h"
+#include "../include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
 
 /* Número máximo de bloques de memoria que se pueden allocar en una sola prueba. */
 #define MAX_BLOCKS 128

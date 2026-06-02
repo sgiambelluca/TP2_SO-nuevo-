@@ -33,10 +33,10 @@ Kernel heap: `0x600000`, 8 MB (`HEAP_START` / `HEAP_SIZE` in `Kernel/c/kernel.c`
 
 All user code lives in the **single** `0000-sampleCodeModule.bin`. To add a new standalone command (e.g. `wc`, `filter`):
 
-1. Implement the function with signature `int64_t cmd_name(int argc, char *argv[])` in a `Userland/c/*.c` file.
-2. Register it in `Userland/c/syscall.c` -> `registry[]` (`name` -> `fn`).
-3. Register the **name** in `Userland/c/userlib.c` -> `is_child_command()` so the shell spawns it as a new process instead of running it as a built-in.
-4. Update `help` text in `Userland/c/userlib.c` if desired.
+1. Implement the function with signature `int64_t cmd_name(int argc, char *argv[])` in a `Userland/c/commands/*.c` file.
+2. Register it in `Userland/c/shell/syscall.c` -> `registry[]` (`name` -> `fn`).
+3. Register the **name** in `Userland/c/shell/userlib.c` -> `is_child_command()` so the shell spawns it as a new process instead of running it as a built-in.
+4. Update `help` text in `Userland/c/shell/help.c` if desired.
 
 ## Syscalls
 
@@ -46,7 +46,7 @@ To add a syscall:
 1. Bump `CANT_SYS` in `Kernel/include/defs.h`.
 2. Implement `sys_*` in the kernel.
 3. Add it to the `syscalls[]` table in `Kernel/c/syscallDispatcher.c`.
-4. Expose a wrapper in `Userland/asm/userlib.asm` and `Userland/c/userlib.c` / `Userland/c/include/syscall.h`.
+4. Expose a wrapper in `Userland/asm/userlib.asm` and `Userland/c/shell/userlib.c` / `Userland/c/include/syscall.h`.
 
 ## Testing
 
@@ -72,7 +72,7 @@ Run these **inside the running OS shell**. They must work as both foreground and
 
 - The enunciado requires **all** commands to be real processes. Some are still in-process built-ins:
   - `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`
-- Shell background (`&`) and two-stage pipes (`cmd1 | cmd2`) **are** already implemented in `Userland/c/userlib.c`.
+- Shell background (`&`) and two-stage pipes (`cmd1 | cmd2`) **are** already implemented in `Userland/c/shell/userlib.c`.
 - Keyboard shortcuts `Ctrl+C` (kill foreground) and `Ctrl+D` (EOF), and `+`/`-` (font size) **are** implemented.
   - `Ctrl+C` kills the **newest** foreground process (highest PID), avoiding killing the shell when it is waiting for a child.
   - `Ctrl+D` sends `0x04` (EOT) to the keyboard buffer; `fd_read` interprets it as EOF.

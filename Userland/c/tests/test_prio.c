@@ -1,7 +1,7 @@
-#include "include/syscall.h"
-#include "include/test_util.h"
-#include "include/userlib.h"
-#include "include/shell.h"
+#include "../include/syscall.h"
+#include "../include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
 
 /* Número total de procesos a crear en la prueba. */
 #define TOTAL_PROCESSES 3

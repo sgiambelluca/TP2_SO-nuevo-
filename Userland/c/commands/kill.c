@@ -1,6 +1,6 @@
-#include "include/userlib.h"
-#include "include/shell.h"
-#include "include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
+#include "../include/test_util.h"
 
 int64_t kill_cmd(int argc, char *argv[]){
     if(argc != 1){

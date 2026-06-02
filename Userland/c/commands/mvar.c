@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "include/shell.h"
-#include "include/userlib.h"
-#include "include/syscall.h"
-#include "include/test_util.h"
+#include "../include/shell.h"
+#include "../include/userlib.h"
+#include "../include/syscall.h"
+#include "../include/test_util.h"
 
 /* Colores de lectores (ciclicos). */
 static const uint32_t reader_colors[] = {

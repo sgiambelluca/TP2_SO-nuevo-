@@ -1,7 +1,7 @@
-#include "include/syscall.h"
-#include "include/test_util.h"
-#include "include/userlib.h"
-#include "include/shell.h"
+#include "../include/syscall.h"
+#include "../include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
 
 /* Estados posibles de un proceso. */
 enum State { RUNNING, BLOCKED, KILLED };

@@ -1,6 +1,6 @@
-#include "include/test_util.h"
-#include "include/userlib.h"
-#include "include/shell.h"
+#include "../include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
 #include <stdarg.h>
 #include <stdint.h>
 

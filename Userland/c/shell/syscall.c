@@ -1,6 +1,6 @@
-#include "include/syscall.h"
-#include "include/userlib.h"
-#include "include/test_util.h"
+#include "../include/syscall.h"
+#include "../include/userlib.h"
+#include "../include/test_util.h"
 #include <stdint.h>
 
 /* Entrada en el registro de procesos. */

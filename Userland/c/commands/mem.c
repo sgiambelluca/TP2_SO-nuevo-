@@ -1,7 +1,7 @@
-#include "include/userlib.h"
-#include "include/shell.h"
-#include "include/memoryManager.h"
-#include "include/test_util.h"
+#include "../include/userlib.h"
+#include "../include/shell.h"
+#include "../include/memoryManager.h"
+#include "../include/test_util.h"
 
 int64_t mem(int argc, char *argv[]) {
     (void)argc;
