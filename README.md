@@ -1,11 +1,10 @@
 # MASS OS — TP2 Sistemas Operativos (ITBA)
 
-Kernel bare-metal x86-64 que corre directamente sobre QEMU o hardware real, sin sistema operativo subyacente. Implementa memoria, procesos, scheduling Round-Robin con prioridades, semaforos nombrados, pipes (anonimos y nombrados) y syscalls desde cero.
+Kernel bare-metal x86-64 que corre directamente sobre QEMU o hardware real sin sistema operativo subyacente. Implementa memoria, procesos, scheduling Round-Robin con prioridades, semaforos nombrados, pipes (anonimos y nombrados) y syscalls desde cero.
 
 ## Requisitos
 
-- Docker (unico requisito en el host)
-- QEMU (`qemu-system-x86_64`) para ejecutar la imagen
+- QEMU para ejecutar la imagen (`qemu-system-x86_64`)
 - Docker Desktop o el daemon Docker en ejecucion antes de correr `./create.sh`
 
 ---
@@ -16,7 +15,7 @@ Kernel bare-metal x86-64 que corre directamente sobre QEMU o hardware real, sin 
 ./create.sh
 ```
 
-Descarga la imagen `agodio/itba-so-multiarch:3.1` y crea el contenedor `TP_SO_2` con el directorio actual montado en `/root`. Solo es necesario hacerlo una vez.
+Descarga la imagen `agodio/itba-so-multiarch:3.1` y crea el contenedor `TP_SO_2` con el directorio actual montado en `/root`.
 
 ---
 
@@ -24,7 +23,6 @@ Descarga la imagen `agodio/itba-so-multiarch:3.1` y crea el contenedor `TP_SO_2`
 
 ```bash
 ./compile.sh           # compila con First-Fit (default)
-./compile.sh vbox      # idem, genera imagen VirtualBox (.vmdk)
 ```
 
 ### Seleccion del memory manager
@@ -40,39 +38,23 @@ El kernel soporta dos implementaciones de memoria, seleccionables en tiempo de c
 ```bash
 # Buddy System + imagen QEMU
 MM=BUDDY ./compile.sh
-
-# Buddy System + imagen VirtualBox
-MM=BUDDY ./compile.sh vbox
 ```
 
 > **First-Fit**: lista enlazada de bloques libres; busca el primer bloque que ajuste.
 > **Buddy System**: bloques de potencia de 2; divide y fusiona en pares (`buddies`).
-
-La seleccion es **exclusiva en compilacion**: una imagen usa un unico MM. Para comparar ambos hay que compilar y correr por separado.
 
 ---
 
 ## Ejecutar
 
 ```bash
-./run.sh           # QEMU (busca .qcow2, fallback a .img)
-./run.sh vbox      # muestra pasos para VirtualBox
-./run.sh usb       # muestra comando dd para grabar en USB
+./run.sh           # QEMU
 ```
 
 **Permiso denegado en la imagen**: el contenedor corre como root, por lo que el `.qcow2` queda con permisos de root. Si `./run.sh` falla:
 
 ```bash
 sudo chown $USER Image/x64BareBonesImage.qcow2
-```
-
----
-
-## Compilar y correr en un paso
-
-```bash
-./compile.sh && ./run.sh              # First-Fit
-MM=BUDDY ./compile.sh && ./run.sh     # Buddy System
 ```
 
 ---
@@ -130,8 +112,8 @@ Al bootear se inicia una shell interactiva.
 
 | Atajo | Accion |
 |-------|--------|
-| `Ctrl+C` | Mata el proceso en **foreground** mas reciente (el hijo, no la shell). |
-| `Ctrl+D` | Envia EOF (`0x04`) al stdin del proceso foreground. |
+| `Ctrl + C` | Mata el proceso en **foreground** mas reciente (el hijo, no la shell). |
+| `Ctrl + D` | Envia EOF (`0x04`) al stdin del proceso foreground. |
 | `F1` | Captura snapshot de registros (para luego visualizar con `registers`). |
 | `+` / `-` | Aumenta / disminuye tamano de fuente durante la edicion de linea. |
 
@@ -172,50 +154,44 @@ filter | cat           # filtrar vocales de stdin
 
 - **Comandos core como procesos reales**: `mem`, `kill`, `nice`, `block`, `loop`, `sh`, `cat`, `wc`, `filter`, `mvar`.
 - **Tests como procesos reales**: `test_mm`, `test_processes`, `test_prio`, `test_sync`, `test_named_pipe`.
-- **Built-ins aun en proceso** (pendientes de migrar a procesos hijos): `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`. El enunciado requiere que **todos** los comandos sean procesos.
+- **Built-ins heredados de Arqui**: `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep`.
 
 ---
 
 ## Limitaciones
 
-- No se implemento `fork`/`execve` (modelo POSIX); los procesos se crean mediante `sys_create_process` con una tabla de funciones registradas (`registry[]`).
+- No se implemento `fork`/`execve`; los procesos se crean mediante `sys_create_process` con una tabla de funciones registradas (`registry[]`).
 - No hay paginacion / MMU; todo el userland corre en un unico flat binary en `0x400000`.
 - El scheduler usa Round-Robin con prioridades fijas (1–5); no hay aging ni starvation avoidance explicito.
-- `testDiv0` e `invOp` como procesos hijos requieren que el handler de excepciones mate el proceso actual sin congelar la shell (pendiente de verificacion exhaustiva).
-- `test_named_pipe` ya esta registrado como proceso hijo, pero el test original fue disenado para correr in-process; su comportamiento como proceso independiente debe verificarse.
 
 ---
 
 ## Uso de IA / Fragmentos de codigo asistidos
 
-Algunas partes del codigo fueron desarrolladas o modificadas con asistencia de herramientas de IA generativa (OpenCode / GitHub Copilot). Los cambios fueron revisados manualmente, probados en QEMU y adaptados al contexto bare-metal del TP.
+Algunas partes del codigo fueron desarrolladas o modificadas con asistencia de la IA generativa OpenCode y GitHub Copilot. Los cambios fueron revisados manualmente, probados en QEMU y adaptados al contexto del TP.
 
 ### Cambios asistidos principales (con commits)
 
 **Correccion de bugs y alineacion con referencia de la catedra:**
 - `Userland/c/tests/test_util.c`: distribucion uniforme real en `GetUniform()` (elimino modulo bias); fix de conteo de caracteres en `printf()`. *(commit `3d57ccb`)*
-- `Userland/c/tests/test_sync.c`: firma de `my_process_inc` cambiada a `int64_t` con retorno de error. *(commit `13aa562`)*
-- `Userland/c/shell/syscall.c` + `Userland/c/shell/userlib.c`: registro de `test_named_pipe` como proceso hijo. *(commit `f5a0db9`)*
-- `Userland/c/shell/help.c`: corrigio texto de `+`/`-` de "built-in" a "atajo de teclado". *(commit `c052717`)*
+- `Userland/c/tests/test_sync.c`: firma de `my_process_inc` cambiada a `int64_t` con retorno de error.
+- `Userland/c/shell/syscall.c` + `Userland/c/shell/userlib.c`: registro de `test_named_pipe` como proceso hijo.
+- `Userland/c/shell/help.c`: corrigio texto de `+`/`-` de "built-in" a "atajo de teclado".
 
-**Estandarizacion C (`()` -> `(void)`) en ~24 funciones:**
+**Estandarizacion C (`()` -> `(void)`):**
 - `Kernel/c/interrupts/idtLoader.c`, `Kernel/c/drivers/keyboardDriver.c`, `Kernel/c/drivers/videoDriver.c`, `Kernel/c/time.c`
 - `Userland/c/shell/shell.c`, `Userland/c/shell/userlib.c`
-*(commit `3d57ccb`)*
 
 **Modularizacion del Kernel:**
 - `Kernel/Makefile`: reorganizacion en carpetas (`scheduler/`, `process/`, `semaphore/`, `pipe/`, `interrupts/`, `syscall/`, `lib/`, `sound/`, `kernel/`).
-*(commit `13aa562`)*
 
 **Modularizacion de Userland:**
 - `Userland/Makefile`: reorganizacion en carpetas (`tests/`, `shell/`, `commands/`).
 - Movimiento de 18 archivos `.c` a sus carpetas correspondientes con actualizacion de includes.
-*(commit `40624eb`)*
 
 **Documentacion:**
-- `README.md`: correcciones (`testMM` -> `test_mm`, descripciones de tests).
+- `README.md`: correcciones (`testMM` -> `test_mm`, descripciones de tests y funciones).
 - `AGENTS.md`: actualizaciones de rutas y convenciones.
-*(commits `c052717`, `40624eb`)*
 
 ### Verificacion
 
