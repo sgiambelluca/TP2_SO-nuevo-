@@ -257,5 +257,15 @@ void mvar_cleanup_for_process(uint64_t pid){
         MVar *mv = &mvar_table[i];
         queue_remove_pid(mv->wq, &mv->wq_head, &mv->wq_tail, &mv->wq_count, MVAR_Q_SIZE, pid);
         queue_remove_pid(mv->rq, &mv->rq_head, &mv->rq_tail, &mv->rq_count, MVAR_Q_SIZE, pid);
+
+        /* Si tras la limpieza hay un desbalance, despertar al menos
+           un proceso bloqueado que ahora puede avanzar. */
+        if(mv->state == MVAR_EMPTY && mv->wq_count > 0){
+            uint64_t wake_pid = wq_pop(mv);
+            process_unblock(wake_pid);
+        } else if(mv->state == MVAR_FULL && mv->rq_count > 0){
+            uint64_t wake_pid = rq_pop(mv);
+            process_unblock(wake_pid);
+        }
     }
 }
