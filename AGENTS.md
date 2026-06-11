@@ -31,6 +31,8 @@ Kernel heap: `0x600000`, 8 MB (`HEAP_START` / `HEAP_SIZE` in `Kernel/c/kernel/ke
 
 **Kernel-internal allocations** (process stacks, argv copies) must use `mm_malloc_kernel()`, which is tracked separately from user `mm_malloc()` in `MemStatus.used_kernel`.
 
+**MVar** (multiple-reader/writer synchronization): writers block in `wq` when FULL, readers block in `rq` when EMPTY. Unblocking is **priority-based** (`wq_pop_highest` / `rq_pop_highest`) with an anti-starvation cooldown — do not revert to FIFO `wq_pop` / `rq_pop`.
+
 ## Adding a user-space command
 
 All user code lives in the **single** `0000-sampleCodeModule.bin`. To add a new standalone command (e.g. `wc`, `filter`):
@@ -90,6 +92,12 @@ These bugs were fixed and their invariants **must not be regressed**:
 - `process_waitpid` must free `stack_base` and `argv` before setting `child->state = PROCESS_FREE`. (`Kernel/c/process/process.c`)
 - `process_exit` must call `scheduler_remove(current_process)` in all exit paths. (`Kernel/c/process/process.c`)
 - `_irq01Handler` (keyboard ISR) must check `force_switch` before `popState` — same pattern as `_irq128Handler` (syscall ISR). (`Kernel/asm/interrupts.asm`)
+
+## Critical invariants (MVar / scheduler priority)
+
+- `mvar_cleanup_for_process` must wake blocked processes after removing a killed PID — if MVar is EMPTY and `wq_count > 0`, pop and unblock a writer; if FULL and `rq_count > 0`, pop and unblock a reader. Without this, killing a blocked process deadlocks the MVar. (`Kernel/c/syscall/mvar.c`)
+- `wq_pop_highest` / `rq_pop_highest` use a **cooldown** to prevent starvation: after `priority` consecutive serves of the highest-priority level, the lowest-priority entry gets one turn. Do not replace with pure FIFO or pure priority — both cause bugs (FIFO ignores `nice`; pure priority starves lower-priority writers). (`Kernel/c/syscall/mvar.c`)
+- `scheduler_next_ready` gives foreground processes an **effective +1 priority boost** for selection. Without this, a foreground shell at priority 3 is starved when any background process has priority ≥ 3. (`Kernel/c/scheduler/scheduler.c`)
 
 ## Repo-specific gotchas
 

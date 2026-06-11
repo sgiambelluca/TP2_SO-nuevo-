@@ -92,9 +92,9 @@ Al bootear se inicia una shell interactiva.
 | Test | Parametros | Descripcion |
 |------|-----------|-------------|
 | `test_mm <max>` | `max`: bytes maximos | Ciclo infinito de alloc/free; imprime solo si hay error. Debe funcionar con al menos un MM. |
-| `test_processes <max>` | `max`: cantidad de procesos | Crea, bloquea, desbloquea y mata procesos dummy ciclicamente. |
+| `test_processes <max>` | `max`: cantidad de procesos | Crea, bloquea, desbloquea y mata procesos dummy ciclicamente. Nota: el enunciado lo llama `test_proc`. |
 | `test_prio <target>` | `target`: valor a alcanzar | Crea 3 procesos con distintas prioridades; visualiza diferencias de ejecucion. |
-| `test_sync <n> <sem>` | `n`: iteraciones, `sem`: 0/1 | Test de condiciones de carrera. Resultado esperado `0` si `sem=1`. |
+| `test_sync <n> <sem>` | `n`: iteraciones, `sem`: 0/1 | Test de condiciones de carrera. Resultado esperado `0` si `sem=1`. Nota: el enunciado especifica 3 params pero la cantidad de pares esta hardcodeada en 2. |
 | `test_named_pipe` | — | Test de pipes con nombre (IPC entre escritor y lector). |
 
 ---
@@ -158,11 +158,14 @@ filter | cat           # filtrar vocales de stdin
 
 ---
 
-## Limitaciones
+## Requerimientos faltantes o parcialmente implementados
 
 - No se implemento `fork`/`execve`; los procesos se crean mediante `sys_create_process` con una tabla de funciones registradas (`registry[]`).
 - No hay paginacion / MMU; todo el userland corre en un unico flat binary en `0x400000`.
-- El scheduler usa Round-Robin con prioridades fijas (1–5); no hay aging ni starvation avoidance explicito.
+- El scheduler general usa Round-Robin con prioridades fijas (1–5) sin aging. El MVar implementa anti-starvation via cooldown para evitar bloqueo de escritores de baja prioridad.
+- `test_sync` acepta 2 parametros (`<n> <use_sem>`) en lugar de los 3 del enunciado (`<pairs> <increments> <use_sem>`); la cantidad de pares esta hardcodeada en 2.
+- El nombre del test de procesos es `test_processes` en lugar de `test_proc` (enunciado).
+- Los comandos `clear`, `ps`, `printTime`, `printDate`, `registers`, `testDiv0`, `invOp`, `playBeep` siguen siendo built-ins (no procesos de usuario).
 
 ---
 
