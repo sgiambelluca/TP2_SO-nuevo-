@@ -80,29 +80,52 @@ Run these **inside the running OS shell**. They must work as both foreground and
   - `Ctrl+C` kills the **newest** foreground process (highest PID), avoiding killing the shell when it is waiting for a child.
   - `Ctrl+D` sends `0x04` (EOT) to the keyboard buffer; `fd_read` interprets it as EOF.
 
-## Technical notes: Ctrl+C fix and ZOMBIE reaping
+## Critical invariants (Ctrl+C / process kill / ZOMBIE reaping)
 
-Killing the foreground process from the keyboard ISR (`Ctrl+C`) previously caused the screen to freeze. The root causes and fixes applied:
+These bugs were fixed and their invariants **must not be regressed**:
 
-1. **`process_kill_foreground` killed the shell instead of the child.**  
-   It now searches for the foreground process with the **highest PID** (the most recent child) and only kills if `fg_count > 1`. File: `Kernel/c/process/process.c`.
-
-2. **`process_kill` freed the current process's stack from interrupt context.**  
-   When `p == current_process`, it only marks the process as `ZOMBIE`, releases FDs, and sets `force_switch = 1`. It **does not** call `mm_free(stack_base)` or `mm_free(argv)`. File: `Kernel/c/process/process.c`.
-
-3. **ZOMBIE reaping was missing in the scheduler.**  
-   Both `scheduler_tick` and `scheduler_yield_impl` now check `cur->state == PROCESS_ZOMBIE` **after** finding a valid `next` process. If true, they call `scheduler_remove(cur)`, free `stack_base` and `argv`, and mark the slot as `FREE`. File: `Kernel/c/scheduler/scheduler.c`.
-
-4. **`process_waitpid` leaked memory when reclaiming a ZOMBIE child.**  
-   It now frees `stack_base` and `argv` before setting `child->state = PROCESS_FREE`. File: `Kernel/c/process/process.c`.
-
-5. **`process_exit` left the process in the scheduler queue.**  
-   Added `scheduler_remove(current_process)` in all exit paths. File: `Kernel/c/process/process.c`.
-
-6. **The keyboard ISR (`_irq01Handler`) ignored `force_switch`.**  
-   Before `popState`, it now checks `force_switch`. If set, it calls `scheduler_yield_impl` and swaps `rsp`, exactly like the syscall handler (`_irq128Handler`). File: `Kernel/asm/interrupts.asm`.
+- `process_kill` must **never** free `stack_base` or `argv` when killing the current process from interrupt context — only mark ZOMBIE + set `force_switch = 1`. (`Kernel/c/process/process.c`)
+- `process_kill_foreground` must select the foreground process with the **highest PID** (newest child) and only kill if `fg_count > 1`, to avoid killing the shell itself. (`Kernel/c/process/process.c`)
+- Both `scheduler_tick` and `scheduler_yield_impl` must reap ZOMBIEs **after** confirming a valid `next` — call `scheduler_remove(cur)`, free `stack_base` and `argv`, mark slot `FREE`. (`Kernel/c/scheduler/scheduler.c`)
+- `process_waitpid` must free `stack_base` and `argv` before setting `child->state = PROCESS_FREE`. (`Kernel/c/process/process.c`)
+- `process_exit` must call `scheduler_remove(current_process)` in all exit paths. (`Kernel/c/process/process.c`)
+- `_irq01Handler` (keyboard ISR) must check `force_switch` before `popState` — same pattern as `_irq128Handler` (syscall ISR). (`Kernel/asm/interrupts.asm`)
 
 ## Repo-specific gotchas
 
 - `compile.sh` validates that the container mounts the current directory at `/root`; if you moved the repo, recreate the container.
 - `Kernel/c/syscall/syscallDispatcher.c` uses `CANT_SYS` for the `syscalls[]` array size, but the bounds check in `Kernel/asm/interrupts.asm` is a hardcoded literal (`cmp rax, 44`). They must be kept in sync.
+- `Dockerfile` in the repo root is **unused** — the actual build uses `agodio/itba-so-multiarch:3.1` from Docker Hub via `create.sh`.
+- Userland `redrawFont()` (`Userland/c/shell/userlib.c`) allocates `char buffer[4096]` on the stack — risky if the userland stack is limited.
+- `Userland/c/shell/userlib.c` has a dual dispatch: `is_child_command()` is checked **before** `commands[]`. Commands in both lists (e.g. `mem`, `kill`, `test_mm`) have their `commands[]` entry as dead code.
+- `Kernel/c/pipe/fd.c` returns `READ_BLOCKED = (uint64_t)-1` as a sentinel for blocking — userland must treat this as "retry later", not an error.
+- `Userland/c/tests/test_util.c` PRNG seeds are hardcoded constants — every run produces the same "random" sequence.
+
+## Known bugs
+
+### HIGH: `sem_close` abandons blocked waiters (`Kernel/c/semaphore/semaphore.c`)
+When `open_count` reaches 0, the semaphore slot is freed but processes in its `wait_queue` are **never woken**. Those processes remain BLOCKED forever (deadlock).
+
+### HIGH: Semaphore value updates are not atomic (`Kernel/c/semaphore/semaphore.c`)
+`sem_wait`/`sem_post` do plain C `s->value--` / `s->value++` without `lock xchg` or `lock cmpxchg`. Safe on this uniprocessor QEMU setup, but violates the stated requirement in `enunciado` and would break on SMP.
+
+### MEDIUM: `naiveConsole.c` `buffer[64]` too small for binary (`Kernel/c/lib/naiveConsole.c:3`)
+`uintToBase(value, buffer, 2)` on a `uint64_t` needs up to 65 bytes (64 digits + NUL). Buffer is 64 — off-by-one overflow.
+
+### MEDIUM: `process_ps` no NULL check on `buf` (`Kernel/c/process/process.c`)
+`sys_ps` passes a raw userland pointer to `process_ps()` without validating it. A bad pointer will crash the kernel.
+
+### MEDIUM: Large stack arrays in ISR context (`Kernel/c/semaphore/semaphore.c`, `Kernel/c/syscall/mvar.c`)
+`sem_cleanup_for_process` and `mvar_cleanup_for_process` declare `uint64_t pids[MAX_PROCESSES]` (512 bytes) on the stack. Called from `process_kill` in syscall/interrupt context with limited kernel stack depth.
+
+### MEDIUM: `printDate` hardcodes 30 days for all months (`Userland/c/shell/userlib.c`)
+Months with 31 days roll back incorrectly. February is also wrong.
+
+### LOW: `getchar()` busy-waits (`Userland/c/shell/userlib.c:321`)
+Spin-loops on `sys_read` returning `-1`. Violates the no-busy-wait constraint (only `loop` and `test_sync` without semaphores are allowed).
+
+### LOW: `Userland/c/commands/mvar.c` `idx_str[4]` overflows if writers/readers >= 100
+Two-digit formatting assumed; no bounds check.
+
+### LOW: `Userland/Makefile` `sampleDataModule` target uses `>>` (append)
+Running `make` multiple times keeps appending to `0001-sampleDataModule.bin` instead of overwriting.
