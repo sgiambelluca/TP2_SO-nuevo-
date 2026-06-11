@@ -24,10 +24,10 @@ if [ "${TARGET_ARG}" = "qemu" ]; then
 		exit 1
 	fi
 
-	# Detectar si esta build de QEMU soporta PulseAudio (para el PC speaker).
+	# Detectar si PulseAudio está disponible y corriendo (para el PC speaker).
 	# Si no, arrancamos sin audio: el kernel funciona igual, solo no suena el beep.
 	AUDIO_FLAGS=()
-	if qemu-system-x86_64 -audiodev help 2>&1 | grep -qw "pa"; then
+	if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
 		AUDIO_FLAGS=(-audiodev pa,id=snd0 -machine pcspk-audiodev=snd0)
 	fi
 
