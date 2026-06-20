@@ -251,6 +251,7 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
     p->pid = ++next_pid;
     p->priority = DEFAULT_PRIORITY;
     p->remaining_quanta = DEFAULT_PRIORITY;
+    p->wait_ticks = 0;
     p->state = (fg & 2) ? PROCESS_BLOCKED : PROCESS_READY;
     p->foreground = fg;     /* flag para indicar si el proceso es de primer plano. */
     p->fd[0] = FD_STDIN;
@@ -318,6 +319,7 @@ void process_exit(int retval){
         parent->rsp[14] = (uint64_t)(int64_t)retval;
         parent->waiting_for = 0;
         parent->state = PROCESS_READY;
+        parent->wait_ticks = 0;   /* estaba en waitpid: no cuenta como espera de CPU */
 
         /* Reap inmediato: el padre ya recibio el retval, no necesitamos ZOMBIE. */
         current_process->state = PROCESS_FREE;
@@ -357,6 +359,7 @@ void process_kill(uint64_t pid){
         parent->rsp[14] = (uint64_t)(int64_t)(-1);
         parent->waiting_for = 0;
         parent->state = PROCESS_READY;
+        parent->wait_ticks = 0;   /* estaba en waitpid: no cuenta como espera de CPU */
     }
 
     if(p == current_process){
@@ -415,6 +418,7 @@ void process_unblock(uint64_t pid){
     }
 
     p->state = PROCESS_READY;
+    p->wait_ticks = 0;   /* el tiempo bloqueado no cuenta como espera de CPU */
 
     /* Soft boost: si el proceso desbloqueado tiene más prioridad que el
        actual, forzar un re-scan del scheduler inmediatamente. */
@@ -441,6 +445,7 @@ void process_nice(uint64_t pid, uint8_t new_priority){
     }
     
     p->priority = new_priority;
+    p->wait_ticks = 0;   /* nice reinicia el aging al nuevo nivel */
 
     /* Actualizar remaining_quanta incondicionalmente: si se sube la prioridad el
        proceso recibe un quantum completo en el proximo tick; si se baja, se corta

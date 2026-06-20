@@ -6,11 +6,26 @@
 // Leida desde interrupts.asm para decidir si hacer context switch voluntario
 volatile uint64_t force_switch = 0;
 
+/* Aging: cada AGING_INTERVAL ticks de espera, la prioridad efectiva sube +1.
+ * MAX_AGING_BONUS acota el bono para que un proceso prio-1 no exceda eff=5.
+ * Timer a 100 Hz => 1 tick = 10ms => AGING_INTERVAL=50 == 500ms por +1. */
+#define AGING_INTERVAL  50
+#define MAX_AGING_BONUS 4
+
 /* Lista de procesos listos para ejecutarse. */
 static PCB* run_queue[MAX_PROCESSES];
 
 static int queue_size = 0;
 static int queue_idx  = 0;
+
+/* Bono de aging: +1 por cada AGING_INTERVAL ticks esperando, hasta el tope. */
+static int aging_bonus(const PCB *p){
+    int b = (int)(p->wait_ticks / AGING_INTERVAL);
+    if(b > MAX_AGING_BONUS){
+        b = MAX_AGING_BONUS;
+    }
+    return b;
+}
 
 /* Inicializa la cola de ejecución. */
 void scheduler_init(void){
@@ -84,8 +99,11 @@ void scheduler_remove(PCB* p){
 
 /* 
 ** Elegir el siguiente proceso READY usando round-robin con preferencia
-** a foreground. Dos pasadas: primero busca READY con foreground=1, si no
-** encuentra ninguno busca cualquier READY (incluye background).
+** a foreground. La prioridad efectiva incluye el bono de aging, de modo
+** que un proceso de baja prioridad que lleva mucho tiempo esperando
+** eventualmente compita con los de mayor prioridad (anti-starvation).
+** Dos pasadas: primero busca READY foreground con eff == highest_eff,
+** si no encuentra ninguno busca cualquier READY con eff == highest_eff.
 */
 PCB* scheduler_next_ready(void){
     if(queue_size == 0){
@@ -93,11 +111,13 @@ PCB* scheduler_next_ready(void){
     }
 
     /* Encontrar la prioridad efectiva mas alta entre procesos READY.
-       Los procesos foreground reciben +1 de boost para selección. */
+       eff = priority + (foreground ? 1 : 0) + aging_bonus. */
     int highest_eff = -1;
     for(int i = 0; i < queue_size; i++){
         if(run_queue[i]->state == PROCESS_READY){
-            int eff = run_queue[i]->priority + (run_queue[i]->foreground ? 1 : 0);
+            int eff = run_queue[i]->priority
+                    + (run_queue[i]->foreground ? 1 : 0)
+                    + aging_bonus(run_queue[i]);
             if(eff > highest_eff){
                 highest_eff = eff;
             }
@@ -110,7 +130,7 @@ PCB* scheduler_next_ready(void){
         queue_idx = (queue_idx + 1) % queue_size;
         PCB* c = run_queue[queue_idx];
         if(c->state == PROCESS_READY && c->foreground &&
-           c->priority + 1 == highest_eff){
+           c->priority + 1 + aging_bonus(c) == highest_eff){
             return c;
         }
     }
@@ -120,7 +140,7 @@ PCB* scheduler_next_ready(void){
         queue_idx = (queue_idx + 1) % queue_size;
         PCB* c = run_queue[queue_idx];
         if(c->state == PROCESS_READY){
-            int eff = c->priority + (c->foreground ? 1 : 0);
+            int eff = c->priority + (c->foreground ? 1 : 0) + aging_bonus(c);
             if(eff == highest_eff){
                 return c;
             }
@@ -142,6 +162,15 @@ uint64_t* scheduler_tick(uint64_t* current_rsp){
     timer_handler();
 
     PCB* cur = process_current();
+
+    /* Aging: incrementar la espera de todos los READY salvo el que corre.
+       Se hace antes de demote al current para no auto-incrementarlo. */
+    for(int i = 0; i < queue_size; i++){
+        PCB* p = run_queue[i];
+        if(p != cur && p->state == PROCESS_READY){
+            p->wait_ticks++;
+        }
+    }
 
     if(cur != NULL){
         /* Si hay un proceso corriendo... */
@@ -198,6 +227,8 @@ uint64_t* scheduler_tick(uint64_t* current_rsp){
         cur->pid = 0;
     }
 
+    /* Va a correr: resetear su aging. */
+    next->wait_ticks = 0;
     next->state = PROCESS_RUNNING;
     process_set_current(next);
 
@@ -254,10 +285,10 @@ uint64_t *scheduler_yield_impl(uint64_t *current_rsp){
         cur->pid = 0;
     }
 
+    /* Va a correr: resetear su aging. */
+    next->wait_ticks = 0;
     next->state = PROCESS_RUNNING;
     process_set_current(next);
 
     return next->rsp;
 }
-
-

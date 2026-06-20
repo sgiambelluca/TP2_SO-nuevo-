@@ -28,6 +28,7 @@ typedef struct PCB{
     ProcessEntry entry;         /* Punto de entrada real del proceso. */
     uint8_t priority;           /* Prioridad del proceso (1-5). */
     uint8_t remaining_quanta;   /* Cuanta restante en el quantum actual. */
+    uint32_t wait_ticks;        /* Ticks acumulados esperando CPU (aging). */
     ProcessState state;         /* Estado del proceso. */
     uint64_t *rsp;              /* RSP guardado (valido cuando no esta RUNNING) */
     uint64_t *stack_base;       /* base del stack mm_malloc (para liberar) */

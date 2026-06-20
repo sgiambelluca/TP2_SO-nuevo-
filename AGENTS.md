@@ -99,6 +99,13 @@ These bugs were fixed and their invariants **must not be regressed**:
 - `wq_pop_highest` / `rq_pop_highest` use a **cooldown** to prevent starvation: after `priority` consecutive serves of the highest-priority level, the lowest-priority entry gets one turn. Do not replace with pure FIFO or pure priority — both cause bugs (FIFO ignores `nice`; pure priority starves lower-priority writers). (`Kernel/c/syscall/mvar.c`)
 - `scheduler_next_ready` gives foreground processes an **effective +1 priority boost** for selection. Without this, a foreground shell at priority 3 is starved when any background process has priority ≥ 3. (`Kernel/c/scheduler/scheduler.c`)
 
+## Critical invariants (scheduler aging)
+
+- The scheduler uses **aging** to prevent starvation of low-priority processes. `PCB.wait_ticks` accumulates in `scheduler_tick` for every READY process except the one currently RUNNING. The effective priority for selection is `priority + (foreground ? 1 : 0) + aging_bonus`, where `aging_bonus = min(wait_ticks / AGING_INTERVAL, MAX_AGING_BONUS)` (`AGING_INTERVAL=50` ticks = 500 ms, `MAX_AGING_BONUS=4`). (`Kernel/c/scheduler/scheduler.c`)
+- `wait_ticks` is reset to 0 when the process is selected to run (`scheduler_tick` and `scheduler_yield_impl`), when it is unblocked (`process_unblock` and the two `waitpid`-wake paths in `process_exit`/`process_kill`), when its priority changes (`process_nice`), and at creation (`process_create`). Time spent BLOCKED does **not** count as CPU starvation.
+- Aging affects **selection** only; the quantum (timeslice duration) remains `priority` (base), not effective priority. This prevents a starved process from getting an oversized timeslice once it finally runs.
+- `priority` (base) is what `nice` sets and `ps` displays; it does not fluctuate with aging. The foreground +1 boost is a tie-breaker **within** the same effective level; aging is the **inter-level** anti-starvation mechanism. Both coexist by summing into `eff`.
+
 ## Critical invariants (semaphores)
 
 - `sem_wait`/`sem_post`/`sem_cleanup_for_process`/`sem_close` protect the section (value + wait queue) with `sem_lock`/`sem_unlock` (`atomic_xchg`). The unlock must happen **before** `process_block`/`process_unblock`: these only set `state` + `force_switch`; the context switch occurs at `iretq`. Unlocking after `process_block` would leave the lock held by a descheduled process → deadlock. (`Kernel/c/semaphore/semaphore.c`)
