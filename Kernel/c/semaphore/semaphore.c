@@ -1,6 +1,7 @@
 #include "semaphore.h"
 #include "process.h"
 #include "scheduler.h"
+#include "lib.h"
 #include <stddef.h>
 
 /* Maxima cantidad de semáforos. */
@@ -8,6 +9,9 @@
 
 /* Maxima longitud del nombre de un semáforo. */
 #define SEM_NAME_LEN 32
+
+#define LOCKED   1u
+#define UNLOCKED 0u
 
 typedef struct {
     char name[SEM_NAME_LEN];            /* Nombre del semáforo. */
@@ -17,6 +21,7 @@ typedef struct {
     int wait_tail;          /* Índice del último proceso en la cola de espera. */
     int wait_count;         /* Cantidad de procesos en la cola de espera. */
     int open_count;         /* Cantidad de procesos que tienen el semáforo abierto. */
+    volatile uint64_t lock; /* Spinlock (test-and-set via xchg). */
 } Semaphore;
 
 /* Tabla global de semáforos. */
@@ -88,6 +93,53 @@ static uint64_t queue_pop(Semaphore* s){
     return pid;
 }
 
+/* Quita un PID de la cola de espera; retorna 1 si estaba, 0 si no. */
+static int queue_remove_pid(Semaphore* s, uint64_t pid){
+    if(s->wait_count <= 0){
+        return 0;
+    }
+
+    uint64_t new_q[MAX_PROCESSES];
+    int new_count = 0, found = 0, idx = s->wait_head;
+
+    for(int i = 0; i < s->wait_count; i++){
+        if(s->wait_queue[idx] != pid){
+            new_q[new_count++] = s->wait_queue[idx];
+        } else {
+            found = 1;
+        }
+        idx = (idx + 1) % MAX_PROCESSES;
+    }
+
+    if(found){
+        for(int i = 0; i < new_count; i++){
+            s->wait_queue[i] = new_q[i];
+        }
+        s->wait_head = 0;
+        s->wait_tail = new_count;
+        s->wait_count = new_count;
+    }
+
+    return found;
+}
+
+/* Spinlock: test-and-set via xchg atómico. En single-core con IF=0
+   (syscall handler) nunca itera, pero garantiza la atomicidad exigida. */
+static void sem_lock(volatile uint64_t *l){
+    while(atomic_xchg(l, LOCKED) == LOCKED){
+        /* spin */
+    }
+}
+
+static void sem_unlock(volatile uint64_t *l){
+    atomic_xchg(l, UNLOCKED);
+}
+
+/* Índice del semáforo en sem_table (para el bitmap held_sems del PCB). */
+static int sem_index(Semaphore *s){
+    return (int)(s - sem_table);
+}
+
 /* API pública */
 
 /* Inicializa la tabla de semáforos. */
@@ -101,6 +153,7 @@ void sem_init(void){
         sem_table[i].wait_tail = 0;
         sem_table[i].wait_count = 0;
         sem_table[i].name[0] = '\0';
+        sem_table[i].lock = UNLOCKED;
         
         for (j = 0; j < MAX_PROCESSES; j++){
             sem_table[i].wait_queue[j] = 0;
@@ -144,11 +197,15 @@ int64_t sem_open(const char* name, uint64_t initial_value){
     s->wait_head = 0;
     s->wait_tail = 0;
     s->wait_count = 0;
+    s->lock = UNLOCKED;
 
     return 1;
 }
 
-/* Decrementa el semáforo; bloquea el proceso actual si value < 0. */
+/* Decrementa el semáforo; bloquea el proceso actual si value < 0.
+ * Sección crítica (value + cola) protegida por spinlock con xchg.
+ * El unlock va SIEMPRE antes de process_block: si no, el proceso
+ * descheduleado nunca liberaría el lock. */
 int64_t sem_wait(const char *name){
     if(!name){
         return -1;
@@ -159,38 +216,39 @@ int64_t sem_wait(const char *name){
         return -1;
     }
 
-    /* Decrementar el valor del semáforo. */
+    int idx = sem_index(s);
+    PCB* cur = process_current();
+
+    sem_lock(&s->lock);
     s->value--;
 
-    PCB* cur = process_current();
-    if(cur != NULL){
-        /* Registrar el semaforo en el PCB para cleanup al morir */
-        sem_str_copy(cur->sem_name, name, 32);
-    }
-
     if(s->value < 0){
+        /* Sin recurso: a la cola y bloquear. */
         if(cur == NULL){
+            sem_unlock(&s->lock);
             return -1;
         }
 
-        cur->sem_blocked = 1;
-
-        /* Agregar el proceso a la cola de espera. */
         queue_push(s, cur->pid);
+        sem_unlock(&s->lock);
 
-        /* Bloquear el proceso actual. */
-        /* también setea force_switch si es el actual. */
-        process_block(cur->pid); 
+        /* process_block setea BLOCKED + force_switch; el context switch
+           real ocurre en iretq, ya con el lock liberado. */
+        process_block(cur->pid);
     } else {
+        /* Recurso adquirido: marcar tenencia en el PCB. */
         if(cur != NULL){
-            cur->sem_blocked = 0;
+            cur->held_sems |= (1u << idx);
         }
+        sem_unlock(&s->lock);
     }
 
     return 0;
 }
 
-/* Incrementa el semáforo; despierta un proceso en espera si value <= 0. */
+/* Incrementa el semáforo; despierta un proceso en espera si value <= 0.
+ * Sección crítica protegida por spinlock. El recurso se transfiere al
+ * proceso despertado (se le setea su bit de held_sems). */
 int64_t sem_post(const char *name){
     if (!name){
         return -1;
@@ -201,71 +259,91 @@ int64_t sem_post(const char *name){
         return -1;
     }
 
-    /* Incrementar el valor del semáforo. */
+    int idx = sem_index(s);
+    PCB* cur = process_current();
+
+    sem_lock(&s->lock);
+
+    /* El que hace post libera su tenencia (no-op si no la tenía). */
+    if(cur != NULL){
+        cur->held_sems &= ~(1u << idx);
+    }
+
     s->value++;
 
     if((s->value <= 0) && (s->wait_count > 0)){
-        /* Sacar un proceso de la cola de espera. */
+        /* Sacar un proceso de la cola de espera y transferirle el recurso. */
         uint64_t pid = queue_pop(s);
+        PCB* woken = process_get(pid);
+        if(woken != NULL){
+            woken->held_sems |= (1u << idx);
+        }
+        sem_unlock(&s->lock);
 
-        /* Desbloquear el proceso. */
+        /* Desbloquear tras liberar el lock. */
         process_unblock(pid);
+    } else {
+        sem_unlock(&s->lock);
     }
 
     return 0;
 }
 
-/* Limpia semaforos asociados a un proceso que muere.
- * Si el proceso estaba bloqueado en una cola, lo remueve y compensa value.
- * Si el proceso tenia el recurso tomado, lo libera con sem_post. */
+/* Limpia todos los semáforos asociados a un proceso que muere.
+ * Itera TODOS los semáforos abiertos (un proceso puede tener varios):
+ *   - Si estaba en cola de espera: lo saca y compensa el value-- de sem_wait.
+ *   - Si tenía el recurso (bit held): lo libera con un post y despierta
+ *     a un posible waiter transfiriéndole la tenencia.
+ *   - Si ninguna de las dos: no toca value (evita post espurio). */
 void sem_cleanup_for_process(uint64_t pid){
     PCB* p = process_get(pid);
-    if(p == NULL || p->sem_name[0] == '\0'){
+    if(p == NULL){
         return;
     }
 
-    Semaphore* s = find_sem(p->sem_name);
-    if(s == NULL){
-        p->sem_name[0] = '\0';
-        p->sem_blocked = 0;
-        return;
-    }
-
-    if(p->sem_blocked){
-        /* Proceso estaba en cola de espera: reconstruir cola sin el PID */
-        uint64_t new_queue[MAX_PROCESSES];
-        int new_count = 0;
-        int idx = s->wait_head;
-        for(int i = 0; i < s->wait_count; i++){
-            if(s->wait_queue[idx] != pid){
-                new_queue[new_count++] = s->wait_queue[idx];
-            }
-            idx = (idx + 1) % MAX_PROCESSES;
+    for(int i = 0; i < MAX_SEMS; i++){
+        Semaphore* s = &sem_table[i];
+        if(s->open_count <= 0){
+            continue;
         }
-        if(new_count < s->wait_count){
-            /* El PID estaba en la cola: compensar el decremento de sem_wait */
-            s->wait_count = new_count;
-            for(int i = 0; i < new_count; i++){
-                s->wait_queue[i] = new_queue[i];
-            }
-            s->wait_head = 0;
-            s->wait_tail = new_count;
+
+        sem_lock(&s->lock);
+
+        /* 1) Si estaba en la cola de espera: sacarlo y compensar el
+              decremento que hizo sem_wait antes de bloquearlo. */
+        int was_queued = queue_remove_pid(s, pid);
+        if(was_queued){
             s->value++;
         }
-    } else {
-        /* Proceso tenia el recurso: liberarlo */
-        s->value++;
-        if((s->value <= 0) && (s->wait_count > 0)){
-            uint64_t wp = queue_pop(s);
-            process_unblock(wp);
+
+        /* 2) Si tenía el recurso (bit held): liberarlo y despertar a
+              un waiter transfiriéndole la tenencia. */
+        int held = (p->held_sems >> i) & 1u;
+        if(held){
+            p->held_sems &= ~(1u << i);
+            s->value++;
+            if((s->value <= 0) && (s->wait_count > 0)){
+                uint64_t wp = queue_pop(s);
+                PCB* woken = process_get(wp);
+                if(woken != NULL){
+                    woken->held_sems |= (1u << i);
+                }
+                sem_unlock(&s->lock);
+                process_unblock(wp);
+                continue;  /* ya se liberó el lock */
+            }
         }
+
+        sem_unlock(&s->lock);
     }
 
-    p->sem_name[0] = '\0';
-    p->sem_blocked = 0;
+    /* Por seguridad: todos los bits ya se limpiaron arriba. */
+    p->held_sems = 0;
 }
 
-/* Decrementa el contador de usuarios; libera la entrada si llega a 0. */
+/* Decrementa el contador de usuarios; libera la entrada si llega a 0.
+ * Limpia el bit de held del PCB para que el cleanup no procese un slot
+ * que ya se cerró (y podría reutilizarse con otro nombre). */
 int64_t sem_close(const char *name){
     if(!name){
         return -1;
@@ -275,6 +353,13 @@ int64_t sem_close(const char *name){
 
     if(!s){
         return -1;
+    }
+
+    /* Limpiar bit de tenencia del caller (slot puede reutilizarse). */
+    int idx = sem_index(s);
+    PCB* cur = process_current();
+    if(cur != NULL){
+        cur->held_sems &= ~(1u << idx);
     }
 
     /* Decrementar el contador de usuarios. */

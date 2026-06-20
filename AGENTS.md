@@ -13,8 +13,8 @@ Bare-metal x86-64 kernel (ITBA SO TP2). Builds inside a Docker container; runs o
 - **Alias:** `make buddy` in the container is equivalent to `make MM=BUDDY all`.
 - **Run:** `./run.sh`  
   Boots QEMU with `Image/x64BareBonesImage.qcow2` (fallback `.img`), 512 MB RAM.
-- **Permission fix:** If `./run.sh` fails with "permission denied", the container wrote the image as root:  
-  `sudo chown $USER Image/x64BareBonesImage.qcow2`
+- **Other targets:** `./compile.sh vbox` / `./run.sh vbox` (build/attach a `.vmdk` for VirtualBox); `./compile.sh usb` / `./run.sh usb` (raw `.img` to `dd` onto a pendrive). The `TARGET` arg is positional; combine with `MM` as `MM=BUDDY ./compile.sh vbox`.
+- **Permission fix:** `compile.sh` already runs `chown -R` on `/root` after building, so host ownership is normally restored automatically. The manual fallback `sudo chown $USER Image/x64BareBonesImage.qcow2` is only needed if you bypassed `compile.sh`.
 
 ## Architecture
 
@@ -68,7 +68,7 @@ Run these **inside the running OS shell**. They must work as both foreground and
 
 - **Zero `-Wall` warnings.** Kernel and userland compile with `-Wall -Wextra -Werror -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls -Wformat -Wstrict-prototypes -Wno-unused-parameter -ffreestanding -nostdlib -mno-red-zone -fno-common -fno-pie -fno-exceptions -fno-asynchronous-unwind-tables -mno-mmx -mno-sse -mno-sse2 -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc -std=c99`.
 - **No busy waiting** except where explicitly allowed (`loop` command, `test_sync` without semaphores).
-- **No deadlocks, no race conditions.** Semaphore value updates must use atomic instructions (`xchg` / `lock cmpxchg`).
+- **No deadlocks, no race conditions.** Semaphore value updates are protected by a spinlock acquired via `atomic_xchg` (test-and-set) — see `Kernel/asm/libasm.asm` and `Kernel/c/semaphore/semaphore.c`. MVar still modifies `state`/`value` without atomics (pending).
 - **No binaries in repo** — `.o`, `.bin`, `.img`, `.qcow2`, `.vmdk` are already in `.gitignore`.
 - **Spanish** for code, comments, and commit messages.
 - `make`, `make all`, and `make <memory_manager>` are reserved **exclusively** for compilation inside the Docker image. Other tasks (run QEMU, pull image, etc.) must use the provided scripts.
@@ -98,6 +98,15 @@ These bugs were fixed and their invariants **must not be regressed**:
 - `mvar_cleanup_for_process` must wake blocked processes after removing a killed PID — if MVar is EMPTY and `wq_count > 0`, pop and unblock a writer; if FULL and `rq_count > 0`, pop and unblock a reader. Without this, killing a blocked process deadlocks the MVar. (`Kernel/c/syscall/mvar.c`)
 - `wq_pop_highest` / `rq_pop_highest` use a **cooldown** to prevent starvation: after `priority` consecutive serves of the highest-priority level, the lowest-priority entry gets one turn. Do not replace with pure FIFO or pure priority — both cause bugs (FIFO ignores `nice`; pure priority starves lower-priority writers). (`Kernel/c/syscall/mvar.c`)
 - `scheduler_next_ready` gives foreground processes an **effective +1 priority boost** for selection. Without this, a foreground shell at priority 3 is starved when any background process has priority ≥ 3. (`Kernel/c/scheduler/scheduler.c`)
+
+## Critical invariants (semaphores)
+
+- `sem_wait`/`sem_post`/`sem_cleanup_for_process`/`sem_close` protect the section (value + wait queue) with `sem_lock`/`sem_unlock` (`atomic_xchg`). The unlock must happen **before** `process_block`/`process_unblock`: these only set `state` + `force_switch`; the context switch occurs at `iretq`. Unlocking after `process_block` would leave the lock held by a descheduled process → deadlock. (`Kernel/c/semaphore/semaphore.c`)
+- Per-process semaphore tenancy is tracked via `PCB.held_sems` (a `uint32_t` bitmap: bit `i` = the process holds the resource of `sem_table[i]`). Replaces the old single `sem_name[32]` + `sem_blocked` fields, which only tracked one sem and caused spurious posts. (`Kernel/include/process.h`)
+- `held_sems` is set in `sem_wait` (non-blocking path, resource acquired) and in `sem_post` (on the woken waiter — resource transfer); cleared in `sem_post` (the caller) and `sem_close`. Do not set it on the blocking path of `sem_wait`.
+- `sem_cleanup_for_process` iterates **all** open semaphores (a process can hold several). For each sem: if the PID was in the wait queue → remove it and `value++` (compensates the `sem_wait` decrement); if the PID held the resource → `value++` and wake a waiter with resource transfer. If **neither** → do **not** touch `value` (this was the source of the spurious post). (`Kernel/c/semaphore/semaphore.c`)
+- `sem_cleanup_for_process` is called from **both** `process_kill` and `process_exit`. The `process_exit` call was added so a process that exits without `sem_post`/`sem_close` does not leak the resource. (`Kernel/c/process/process.c`)
+- `atomic_xchg` is defined in `Kernel/asm/libasm.asm` and declared in `Kernel/include/lib.h`. `xchg` with a memory operand has an implicit LOCK prefix on x86.
 
 ## Repo-specific gotchas
 

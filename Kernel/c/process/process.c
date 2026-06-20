@@ -263,8 +263,7 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
     p->argv = argv_copy;    /* Memoria kernel (se libera en process_exit/kill) */
     p->retval = 0;
     p->entry = entry;
-    p->sem_name[0] = '\0';
-    p->sem_blocked = 0;
+    p->held_sems = 0;
 
     str_copy(p->name, name, MAX_NAME_LEN);
     
@@ -284,6 +283,10 @@ void process_exit(int retval){
     }
 
     current_process->retval = retval;
+
+    /* Limpiar semáforos antes de liberar recursos para evitar fugas y
+       desbloquear a otros procesos que esperaban en el mismo semáforo. */
+    sem_cleanup_for_process(current_process->pid);
 
     /* El proceso finalizo su ejecucion pero no ha sido removido de la tabla de procesos.*/
     current_process->state = PROCESS_ZOMBIE;
@@ -412,7 +415,6 @@ void process_unblock(uint64_t pid){
     }
 
     p->state = PROCESS_READY;
-    p->sem_blocked = 0;  /* Ya no esta bloqueado esperando semaforo */
 
     /* Soft boost: si el proceso desbloqueado tiene más prioridad que el
        actual, forzar un re-scan del scheduler inmediatamente. */
