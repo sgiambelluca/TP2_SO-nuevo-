@@ -12,7 +12,6 @@
 #include "fd.h"
 #include "pipe.h"
 #include "naiveConsole.h"
-#include "mvar.h"
 
 // ─── Syscalls de memoria (16-18) ──────────────────────────────────────────────
 
@@ -298,22 +297,6 @@ int64_t sys_tty_mode(uint64_t mode){
     return (int64_t)prev;
 }
 
-int64_t sys_mvar_create(const char *name) {
-    return mvar_create(name);
-}
-
-int64_t sys_mvar_put(const char *name, char value) {
-    return mvar_put(name, value);
-}
-
-int64_t sys_mvar_take(const char *name) {
-    return mvar_take(name);
-}
-
-int64_t sys_mvar_destroy(const char *name) {
-    return mvar_destroy(name);
-}
-
 /* Tabla de syscalls */
 void * syscalls[CANT_SYS] = {
     &sys_registers,         // 0
@@ -356,8 +339,4 @@ void * syscalls[CANT_SYS] = {
     &sys_pipe_setup,        // 37
     &sys_tty_mode,           // 38
     &sys_write_color,        // 39
-    &sys_mvar_create,        // 40
-    &sys_mvar_put,           // 41
-    &sys_mvar_take,          // 42
-    &sys_mvar_destroy,       // 43
 };

@@ -10,7 +10,6 @@
 #include "semaphore.h"
 #include "fd.h"
 #include "pipe.h"
-#include "mvar.h"
 
 #define HEAP_START  0x600000
 #define HEAP_SIZE   (8 * 1024 * 1024)  // 8 MB
@@ -70,7 +69,6 @@ void * initializeKernelBinary(void){
     pipe_init();
     scheduler_init();
     sem_init();
-    mvar_init();
 
     // Crear proceso idle primero (siempre en la posicion 0 de la cola)
     process_create("idle", idle_entry, 0, NULL, 0);

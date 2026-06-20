@@ -51,7 +51,9 @@ To add a syscall:
 2. Implement `sys_*` in the kernel.
 3. Add it to the `syscalls[]` table in `Kernel/c/syscall/syscallDispatcher.c`.
 4. Expose a wrapper in `Userland/asm/userlib.asm` and `Userland/c/include/syscall.h`.
-5. **Critical:** Update the hardcoded `cmp rax, 44` in `Kernel/asm/interrupts.asm` (`_irq128Handler`) to match the new `CANT_SYS`. If this assembly check is out of sync, the new syscall will return `-1` (invalid) even if the table is correct.
+5. **Critical:** Update the hardcoded `cmp rax, 40` in `Kernel/asm/interrupts.asm` (`_irq128Handler`) to match the new `CANT_SYS`. If this assembly check is out of sync, the new syscall will return `-1` (invalid) even if the table is correct.
+
+**MVar is NOT a syscall.** It is a userland application (`Userland/c/commands/mvar.c`) built on top of `sem_open`/`sem_wait`/`sem_post`/`sem_close`. Do not add `sys_mvar_*` syscalls — that was the old design and it was rejected by the corrector. The MVar uses a global `umvar_table` (shared address space, no paging) protected by two semaphors per MVar (`<name>e` = empty slots, `<name>f` = full slots).
 
 ## Testing
 
@@ -93,15 +95,17 @@ These bugs were fixed and their invariants **must not be regressed**:
 - `process_exit` must call `scheduler_remove(current_process)` in all exit paths. (`Kernel/c/process/process.c`)
 - `_irq01Handler` (keyboard ISR) must check `force_switch` before `popState` — same pattern as `_irq128Handler` (syscall ISR). (`Kernel/asm/interrupts.asm`)
 
-## Critical invariants (MVar / scheduler priority)
+## Critical invariants (scheduler priority)
 
-- `mvar_put`/`mvar_take`/`mvar_destroy`/`mvar_cleanup_for_process` protect the section (state + value + queues) with `mvar_lock`/`mvar_unlock` (`atomic_xchg`). The unlock must happen **before** `process_unblock` or `cur->state = BLOCKED; force_switch = 1`: these only set state + force_switch; the context switch occurs at `iretq`. Unlocking after would leave the lock held by a descheduled process → deadlock. (`Kernel/c/syscall/mvar.c`)
-- MVar uses **handoff** instead of a retry loop: when a `put` finds a reader waiting, it writes the value directly into `reader->rsp[14]` (the saved RAX slot) and unblocks the reader — the reader wakes with the value in RAX, no retry. When a `take` finds a writer waiting, it reads the current value and writes the writer's pending value (stored in `mvar_q_entry.value`) into `mv->value` — the writer wakes with 0 (saved by the ISR), no retry. This eliminates the old `-2` return code and the `sys_yield()` + retry loop in userland. (`Kernel/c/syscall/mvar.c`, `Userland/c/commands/mvar.c`)
-- The pending value of a blocked writer lives in `mvar_q_entry.value` (the queue entry), **not** in the PCB. The queues `wq[]`/`rq[]` are arrays of `mvar_q_entry {pid, value}`. (`Kernel/c/syscall/mvar.c`)
-- `mvar_destroy` wakes all blocked processes with `-1` written in their `rsp[14]` (MVar destroyed). (`Kernel/c/syscall/mvar.c`)
-- `mvar_cleanup_for_process` must wake blocked processes after removing a killed PID — if MVar is EMPTY and `wq_count > 0`, pop a writer and do handoff (write its value, set FULL); if FULL and `rq_count > 0`, pop a reader and do handoff (write `mv->value` into `reader->rsp[14]`, set EMPTY). Without this, killing a blocked process deadlocks the MVar. (`Kernel/c/syscall/mvar.c`)
-- `wq_pop_highest` / `rq_pop_highest` use a **cooldown** to prevent starvation: after `priority` consecutive serves of the highest-priority level, the lowest-priority entry gets one turn. Do not replace with pure FIFO or pure priority — both cause bugs (FIFO ignores `nice`; pure priority starves lower-priority writers). (`Kernel/c/syscall/mvar.c`)
 - `scheduler_next_ready` gives foreground processes an **effective +1 priority boost** for selection. Without this, a foreground shell at priority 3 is starved when any background process has priority ≥ 3. (`Kernel/c/scheduler/scheduler.c`)
+
+## Critical invariants (MVar — userland application)
+
+MVar is a **userland** application (`Userland/c/commands/mvar.c`), NOT a kernel syscall. It uses `sem_open`/`sem_wait`/`sem_post`/`sem_close` and a global `umvar_table` (shared address space, no paging).
+
+- Each MVar uses two semaphores: `<name>e` (empty slots, initial 1) and `<name>f` (full slots, initial 0). `put` = `sem_wait(empty)` → write value → `sem_post(full)`. `take` = `sem_wait(full)` → read value → `sem_post(empty)`. This implements a buffer of size 1 with mutual exclusion.
+- The `umvar_table` is a static global in `mvar.c`, shared by all processes (no paging). `mvar_create` is called by the parent before spawning writers/readers, so there is no race on table insertion.
+- Cleanup when a process dies is handled by the kernel's `sem_cleanup_for_process` (semaphore correction): if a process is blocked in `sem_wait` on `<name>e` or `<name>f`, it is removed from the wait queue and `value` is compensated. No `mvar_cleanup_for_process` is needed.
 
 ## Critical invariants (scheduler aging)
 
@@ -122,4 +126,4 @@ These bugs were fixed and their invariants **must not be regressed**:
 ## Repo-specific gotchas
 
 - `compile.sh` validates that the container mounts the current directory at `/root`; if you moved the repo, recreate the container.
-- `Kernel/c/syscall/syscallDispatcher.c` uses `CANT_SYS` for the `syscalls[]` array size, but the bounds check in `Kernel/asm/interrupts.asm` is a hardcoded literal (`cmp rax, 44`). They must be kept in sync.
+- `Kernel/c/syscall/syscallDispatcher.c` uses `CANT_SYS` for the `syscalls[]` array size, but the bounds check in `Kernel/asm/interrupts.asm` is a hardcoded literal (`cmp rax, 40`). They must be kept in sync.

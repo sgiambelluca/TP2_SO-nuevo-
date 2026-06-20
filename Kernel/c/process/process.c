@@ -5,7 +5,6 @@
 #include "interrupts.h"
 #include "fd.h"
 #include "semaphore.h"
-#include "mvar.h"
 #include <stddef.h>
 
 /* Tabla de procesos del Kernel. */
@@ -347,9 +346,8 @@ void process_kill(uint64_t pid){
 
     p->retval = -1;
 
-    /* Limpiar semaforos y MVars antes de liberar recursos para evitar deadlock. */
+    /* Limpiar semaforos antes de liberar recursos para evitar deadlock. */
     sem_cleanup_for_process(pid);
-    mvar_cleanup_for_process(pid);
 
     /* Despertar padre si estaba esperando este proceso. */
     PCB *parent = process_get(p->parent_pid);

@@ -42,6 +42,10 @@ int64_t  wc(int argc, char *argv[]);
 void     mvar_writer(int argc, char *argv[]);
 void     mvar_reader(int argc, char *argv[]);
 int64_t  mvar(int argc, char *argv[]);
+int64_t  user_mvar_create(const char *name);
+int64_t  user_mvar_put(const char *name, char value);
+int64_t  user_mvar_take(const char *name);
+void     user_mvar_destroy(const char *name);
 int64_t  filter(int argc, char *argv[]);
 int64_t  help(int argc, char *argv[]);
 
