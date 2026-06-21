@@ -20,10 +20,25 @@ static int64_t test_processes_internal(uint64_t argc, char* argv[]){
     char* argvAux[] = {0};
 
     if(argc != 1){
+        shellPrintString("uso: test_processes <max_processes>\n");
         return -1;
     }
 
-    if((max_processes = (uint64_t)satoi(argv[0])) <= 0){
+    if(!is_valid_uint(argv[0])){
+        shellPrintString("test_processes: max_processes debe ser un numero positivo\n");
+        return -1;
+    }
+
+    if((max_processes = (uint64_t)satoi(argv[0])) == 0){
+        shellPrintString("test_processes: max_processes debe ser mayor a 0\n");
+        return -1;
+    }
+
+    /* El kernel solo dispone de MAX_PROCESSES slots y los contadores internos
+     * son de 8 bits, asi que se acota max_processes para evitar VLA gigantes y
+     * desbordes de iteracion. */
+    if(max_processes > MAX_PROCESSES){
+        shellPrintString("test_processes: max_processes excede el maximo (64)\n");
         return -1;
     }
 

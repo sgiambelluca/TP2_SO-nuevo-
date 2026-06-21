@@ -193,8 +193,14 @@ void test_named_pipe_cmd(void){
  * codigo de salida en vez de imprimir un mensaje final.
  */
 int64_t test_named_pipe_entry(int argc, char *argv[]){
-    (void)argc; 
     (void)argv;
+
+    /* test_named_pipe no recibe parametros. */
+    if(argc != 0){
+        printf("uso: test_named_pipe (sin argumentos)\n");
+        return -1;
+    }
+
     printf("[Named pipe] Creando writer y reader...\n");
 
     /* Crear proceso escritor */

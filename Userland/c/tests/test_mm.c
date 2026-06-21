@@ -21,10 +21,17 @@ static int64_t test_mm_internal(uint64_t argc, char *argv[]){
     uint32_t i;
 
     if(argc != 1){
+        shellPrintString("uso: test_mm <max_memory>\n");
         return -1;
     }
 
-    if((max_memory = (uint64_t)satoi(argv[0])) <= 0){
+    if(!is_valid_uint(argv[0])){
+        shellPrintString("test_mm: max_memory debe ser un numero positivo\n");
+        return -1;
+    }
+
+    if((max_memory = (uint64_t)satoi(argv[0])) == 0){
+        shellPrintString("test_mm: max_memory debe ser mayor a 0\n");
         return -1;
     }
 

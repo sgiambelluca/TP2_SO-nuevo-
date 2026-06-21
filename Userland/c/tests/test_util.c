@@ -59,6 +59,23 @@ int64_t satoi(char *str){
     return res * sign;
 }
 
+/* Valida que str represente un entero no negativo: no nulo, no vacio y
+ * compuesto unicamente por digitos decimales. Rechaza signos, espacios y
+ * cualquier caracter no numerico (a diferencia de satoi, que devuelve 0). */
+int is_valid_uint(const char *str){
+    if(!str || str[0] == '\0'){
+        return 0;
+    }
+
+    for(const char *p = str; *p; p++){
+        if(*p < '0' || *p > '9'){
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 /* Busy-wait y procesos dummy. */
 void bussy_wait(uint64_t n){
     uint64_t i;

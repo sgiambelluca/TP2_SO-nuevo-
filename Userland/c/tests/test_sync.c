@@ -95,6 +95,19 @@ static int64_t test_sync_internal(uint64_t argc, char *argv[]){
     uint64_t pids[2 * TOTAL_PAIR_PROCESSES];
 
     if(argc != 2){
+        shellPrintString("uso: test_sync <n> <use_sem>\n");
+        return -1;
+    }
+
+    /* n: cantidad de iteraciones, debe ser un entero positivo. */
+    if(!is_valid_uint(argv[0]) || satoi(argv[0]) == 0){
+        shellPrintString("test_sync: n debe ser un numero positivo\n");
+        return -1;
+    }
+
+    /* use_sem: bandera 0 (sin semaforo) o 1 (con semaforo). */
+    if(!is_valid_uint(argv[1]) || satoi(argv[1]) > 1){
+        shellPrintString("test_sync: use_sem debe ser 0 o 1\n");
         return -1;
     }
 
