@@ -85,7 +85,34 @@ static user_mvar_t *find_umvar(const char *name){
 
 /* ─── API pública de MVar (espacio de usuario) ─────────────────────────────── */
 
-/* Crea una MVar nombrada. Retorna 1 en exito, 0 si ya existe o tabla llena. */
+/* Abre los dos semáforos de una MVar tomando una referencia propia del proceso
+ * llamador. Los valores iniciales (empty=1, full=0) son ignorados si el semáforo
+ * ya existe, así que el orden de apertura entre participantes es irrelevante.
+ * Cada writer/reader llama a esto al arrancar para ser dueño de su referencia:
+ * así los semáforos viven mientras haya ≥1 participante y el kernel libera la
+ * referencia de un participante muerto (bitmap opened_sems). Retorna 1 si ok. */
+static int64_t user_mvar_open_sems(const char *name){
+    char sem_empty[UMVAR_NAME_LEN + 2];
+    char sem_full[UMVAR_NAME_LEN + 2];
+    build_sem_names(name, sem_empty, sem_full);
+
+    if(!my_sem_open(sem_empty, 1)) return 0;   /* 1 slot vacío */
+    if(!my_sem_open(sem_full, 0)){ my_sem_close(sem_empty); return 0; }  /* 0 valores */
+    return 1;
+}
+
+/* Cierra los dos semáforos de la MVar (libera la referencia del participante). */
+static void user_mvar_close_sems(const char *name){
+    char sem_empty[UMVAR_NAME_LEN + 2];
+    char sem_full[UMVAR_NAME_LEN + 2];
+    build_sem_names(name, sem_empty, sem_full);
+
+    my_sem_close(sem_empty);
+    my_sem_close(sem_full);
+}
+
+/* Registra la entrada de tabla de una MVar (NO abre semáforos: de eso se encargan
+ * los participantes, ver user_mvar_open_sems). Retorna 1 en exito, 0 si ya existe. */
 int64_t user_mvar_create(const char *name){
     if(!name) return 0;
 
@@ -100,15 +127,17 @@ int64_t user_mvar_create(const char *name){
             break;
         }
     }
-    if(slot < 0) return 0;
 
-    /* Crear los dos semáforos. */
-    char sem_empty[UMVAR_NAME_LEN + 2];
-    char sem_full[UMVAR_NAME_LEN + 2];
-    build_sem_names(name, sem_empty, sem_full);
-
-    if(!my_sem_open(sem_empty, 1)) return 0;   /* 1 slot vacío   */
-    if(!my_sem_open(sem_full, 0))  { my_sem_close(sem_empty); return 0; }  /* 0 valores */
+    /* Tabla llena: reclamar un slot rotativo. Cada corrida de `mvar` deja su
+       entrada (el padre la crea y termina), pero sus participantes ya murieron y el
+       kernel liberó sus semáforos, así que reusar un slot viejo es seguro. Cerramos
+       sus semáforos por las dudas (no-op si ya no existen). */
+    if(slot < 0){
+        static int reclaim = 0;
+        slot = reclaim;
+        reclaim = (reclaim + 1) % MAX_USER_MVARS;
+        user_mvar_close_sems(umvar_table[slot].name);
+    }
 
     user_mvar_t *mv = &umvar_table[slot];
     umvar_str_copy(mv->name, name, UMVAR_NAME_LEN);
@@ -208,6 +237,11 @@ void mvar_writer(int argc, char *argv[]){
     char letter = (char)('A' + idx);
     const char *name = argv[1];
 
+    /* Tomar referencia propia de los semaforos (lifetime atado a este proceso). */
+    if(!user_mvar_open_sems(name)){
+        sys_exit(1);
+    }
+
     while(1){
         random_busy_wait();
         int64_t r = user_mvar_put(name, letter);
@@ -216,6 +250,8 @@ void mvar_writer(int argc, char *argv[]){
             break;
         }
     }
+
+    user_mvar_close_sems(name);
     sys_exit(0);
 }
 
@@ -229,6 +265,11 @@ void mvar_reader(int argc, char *argv[]){
     uint32_t color = reader_colors[idx % NUM_COLORS];
     const char *name = argv[1];
 
+    /* Tomar referencia propia de los semaforos (lifetime atado a este proceso). */
+    if(!user_mvar_open_sems(name)){
+        sys_exit(1);
+    }
+
     while(1){
         random_busy_wait();
         int64_t r = user_mvar_take(name);
@@ -239,6 +280,8 @@ void mvar_reader(int argc, char *argv[]){
         char c = (char)(unsigned char)r;
         sys_write_color(STDOUT, &c, 1, color);
     }
+
+    user_mvar_close_sems(name);
     sys_exit(0);
 }
 

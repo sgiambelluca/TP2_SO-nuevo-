@@ -12,6 +12,12 @@ void kbd_set_waiting(struct PCB *p) {
     kbd_waiting_process = p;
 }
 
+void kbd_clear_waiting(struct PCB *p) {
+    if(kbd_waiting_process == p){
+        kbd_waiting_process = NULL;
+    }
+}
+
 char kbd_min[KBD_LENGTH] = {
     0,  27, '1','2','3','4','5','6','7','8','9','0','-','=', '\b', // backspace
     '\t','q','w','e','r','t','y','u','i','o','p','[',']','\n',     //tab y enter

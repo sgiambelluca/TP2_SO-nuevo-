@@ -163,7 +163,7 @@ void sem_init(void){
 
 /* Abre (o crea) un semáforo por nombre. Retorna 1 en éxito, 0 si tabla llena. */
 int64_t sem_open(const char* name, uint64_t initial_value){
-    
+
     if(!name){
         return 0;
     }
@@ -173,31 +173,38 @@ int64_t sem_open(const char* name, uint64_t initial_value){
 
     if(s){
         s->open_count++;
-        return 1;
-    }
-
-    /* Buscar slot libre -> creacion de semaforo */
-    int i;
-    for(i = 0; i < MAX_SEMS; i++){
-        if(sem_table[i].open_count == 0){
-            s = &sem_table[i];
-            break;
+    } else {
+        /* Buscar slot libre -> creacion de semaforo. Un slot con open_count==0 esta
+           libre (find_sem solo encuentra los que tienen open_count>0). */
+        int i;
+        for(i = 0; i < MAX_SEMS; i++){
+            if(sem_table[i].open_count == 0){
+                s = &sem_table[i];
+                break;
+            }
         }
+
+        if(!s){
+            /* Tabla de semaforos llena. */
+            return 0;
+        }
+
+        /* Inicializar el nuevo semáforo encontrado. */
+        sem_str_copy(s->name, name, SEM_NAME_LEN);
+        s->value = (int64_t)initial_value;
+        s->open_count = 1;
+        s->wait_head = 0;
+        s->wait_tail = 0;
+        s->wait_count = 0;
+        s->lock = UNLOCKED;
     }
 
-    if(!s){ 
-        /* Tabla de semaforos llena. */
-        return 0;
+    /* Registrar al proceso como opener: el bit permite que sem_cleanup_for_process
+       devuelva esta referencia (decrementar open_count) si el proceso muere sin cerrar. */
+    PCB* cur = process_current();
+    if(cur != NULL){
+        cur->opened_sems |= (1u << sem_index(s));
     }
-
-    /* Inicializar el nuevo semáforo encontrado. */
-    sem_str_copy(s->name, name, SEM_NAME_LEN);
-    s->value = (int64_t)initial_value;
-    s->open_count = 1;
-    s->wait_head = 0;
-    s->wait_tail = 0;
-    s->wait_count = 0;
-    s->lock = UNLOCKED;
 
     return 1;
 }
@@ -316,6 +323,17 @@ void sem_cleanup_for_process(uint64_t pid){
             s->value++;
         }
 
+        /* 1.5) Si el proceso tenía el semáforo abierto: devolver su referencia de
+               open_count (evita la fuga cuando un proceso muere sin sem_close). Se
+               hace ANTES del bloque held para que el `continue` del wake no lo saltee.
+               open_count==0 deja el slot reutilizable (find_sem lo ignora). */
+        if((p->opened_sems >> i) & 1u){
+            p->opened_sems &= ~(1u << i);
+            if(s->open_count > 0){
+                s->open_count--;
+            }
+        }
+
         /* 2) Si tenía el recurso (bit held): liberarlo y despertar a
               un waiter transfiriéndole la tenencia. */
         int held = (p->held_sems >> i) & 1u;
@@ -339,6 +357,7 @@ void sem_cleanup_for_process(uint64_t pid){
 
     /* Por seguridad: todos los bits ya se limpiaron arriba. */
     p->held_sems = 0;
+    p->opened_sems = 0;
 }
 
 /* Decrementa el contador de usuarios; libera la entrada si llega a 0.
@@ -355,11 +374,12 @@ int64_t sem_close(const char *name){
         return -1;
     }
 
-    /* Limpiar bit de tenencia del caller (slot puede reutilizarse). */
+    /* Limpiar bits de tenencia y apertura del caller (slot puede reutilizarse). */
     int idx = sem_index(s);
     PCB* cur = process_current();
     if(cur != NULL){
         cur->held_sems &= ~(1u << idx);
+        cur->opened_sems &= ~(1u << idx);
     }
 
     /* Decrementar el contador de usuarios. */

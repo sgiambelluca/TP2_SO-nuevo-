@@ -58,6 +58,37 @@ static uint64_t queue_pop(uint64_t* queue, int* head, int* count){
     return pid;
 }
 
+/* Quita un PID de una cola circular (lectores/escritores). Retorna 1 si estaba.
+   Reconstruye la cola compactada desde head=0. */
+static int queue_remove_pid(uint64_t* queue, int* head, int* tail, int* count, uint64_t pid){
+    if(*count <= 0){
+        return 0;
+    }
+
+    uint64_t tmp[MAX_PROCESSES];
+    int n = 0, found = 0, idx = *head;
+
+    for(int i = 0; i < *count; i++){
+        if(queue[idx] != pid){
+            tmp[n++] = queue[idx];
+        } else {
+            found = 1;
+        }
+        idx = (idx + 1) % MAX_PROCESSES;
+    }
+
+    if(found){
+        for(int i = 0; i < n; i++){
+            queue[i] = tmp[i];
+        }
+        *head = 0;
+        *tail = n;
+        *count = n;
+    }
+
+    return found;
+}
+
 /* Desbloquea a un lector en espera, si existe. */
 static void pipe_wake_reader(Pipe* p){
 
@@ -120,6 +151,20 @@ static void pipe_maybe_free(Pipe* p){
 /* Inicializa la tabla global de pipes. */
 void pipe_init(void){
     memset(pipe_table, 0, sizeof(pipe_table));
+}
+
+/* Quita un PID (proceso que muere) de las colas de espera de TODOS los pipes.
+   Simetrico a sem_cleanup_for_process: evita un PID colgante que luego despertaria
+   a un proceso equivocado (sobre todo con reuso de PIDs). */
+void pipe_cleanup_for_process(uint64_t pid){
+    for(int i = 0; i < MAX_PIPES; i++){
+        Pipe* p = &pipe_table[i];
+        if(!p->in_use){
+            continue;
+        }
+        queue_remove_pid(p->wait_readers, &p->wait_r_head, &p->wait_r_tail, &p->wait_r_count, pid);
+        queue_remove_pid(p->wait_writers, &p->wait_w_head, &p->wait_w_tail, &p->wait_w_count, pid);
+    }
 }
 
 /* Reserva un pipe libre de la tabla. */

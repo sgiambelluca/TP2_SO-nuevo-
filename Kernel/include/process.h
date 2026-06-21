@@ -40,6 +40,7 @@ typedef struct PCB{
     char **argv;                /* Argumentos (para pasar a la función entry) */
     int retval;                 /* Valor de retorno del proceso (para que el padre lo lea en waitpid) */
     uint32_t held_sems;         /* Bitmap: bit i = proceso tiene recurso de sem_table[i] */
+    uint32_t opened_sems;       /* Bitmap: bit i = proceso tiene abierto sem_table[i] (open_count) */
 } PCB;
 
 /* Vista userland de un proceso diferenciado de Kernel. */

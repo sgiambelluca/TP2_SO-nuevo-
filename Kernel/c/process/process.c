@@ -5,6 +5,8 @@
 #include "interrupts.h"
 #include "fd.h"
 #include "semaphore.h"
+#include "pipe.h"
+#include "keyboardDriver.h"
 #include <stddef.h>
 
 /* Tabla de procesos del Kernel. */
@@ -264,6 +266,7 @@ int process_create(const char *name, ProcessEntry entry, int argc, char **argv, 
     p->retval = 0;
     p->entry = entry;
     p->held_sems = 0;
+    p->opened_sems = 0;
 
     str_copy(p->name, name, MAX_NAME_LEN);
     
@@ -284,57 +287,31 @@ void process_exit(int retval){
 
     current_process->retval = retval;
 
-    /* Limpiar semáforos antes de liberar recursos para evitar fugas y
-       desbloquear a otros procesos que esperaban en el mismo semáforo. */
+    /* Liberar recursos asociados antes de marcar ZOMBIE: semaforos (evita fugas y
+       desbloquea a otros esperando), colas de pipes (evita PID colgante) y el waiter
+       de teclado (evita puntero colgante en el driver). */
     sem_cleanup_for_process(current_process->pid);
-
-    /* El proceso finalizo su ejecucion pero no ha sido removido de la tabla de procesos.*/
-    current_process->state = PROCESS_ZOMBIE;
-    //zerebrozzzz
+    pipe_cleanup_for_process(current_process->pid);
+    kbd_clear_waiting(current_process);
     process_release_fds(current_process);
 
     /* Despertar al padre si esta bloqueado en waitpid esperando este proceso. */
     PCB* parent = process_get(current_process->parent_pid);
-    if(parent == NULL || parent->state == PROCESS_FREE){
-        /* Padre muerto o liberado: auto-reap para no quedar como ZOMBIE huérfano. */
-        mm_free(current_process->stack_base);
-        current_process->stack_base = NULL;
-        if(current_process->argv != NULL){
-            mm_free(current_process->argv);
-            current_process->argv = NULL;
-        }
-        current_process->rsp = NULL;
-        current_process->state = PROCESS_FREE;
-        current_process->pid = 0;
-        scheduler_remove(current_process);
-        force_switch = 1;
-        return;
-    }
-
     if(parent != NULL && parent->state == PROCESS_BLOCKED && parent->waiting_for == current_process->pid){
-
-        /* Escribir el retval directamente en el RAX guardado del padre. */
-        /* parent->rsp apunta al slot R15; el slot RAX esta 14 qwords mas arriba. */
+        /* Escribir el retval directamente en el RAX guardado del padre.
+           parent->rsp apunta al slot R15; el slot RAX esta 14 qwords mas arriba. */
         parent->rsp[14] = (uint64_t)(int64_t)retval;
         parent->waiting_for = 0;
         parent->state = PROCESS_READY;
         parent->wait_ticks = 0;   /* estaba en waitpid: no cuenta como espera de CPU */
-
-        /* Reap inmediato: el padre ya recibio el retval, no necesitamos ZOMBIE. */
-        current_process->state = PROCESS_FREE;
-        current_process->pid = 0;
     }
 
-    /* Liberar stack y argv del proceso que muere. */
-    mm_free(current_process->stack_base);
-    current_process->stack_base = NULL;
-    if(current_process->argv != NULL){
-        mm_free(current_process->argv);
-        current_process->argv = NULL;
-    }
-    current_process->rsp = NULL;
-
-    scheduler_remove(current_process);
+    /* Marcar ZOMBIE y ceder la CPU. NO liberamos stack_base/argv aca: el proceso
+       todavia se ejecuta sobre su propio kernel stack. El scheduler los libera en su
+       rutina de reap (scheduler_tick / scheduler_yield_impl) recien despues del
+       context switch a otro proceso, cuando este stack ya no esta en uso. Esto
+       respeta la misma invariante que process_kill sobre el proceso actual. */
+    current_process->state = PROCESS_ZOMBIE;
     force_switch = 1;   /* Ceder CPU en el proximo retorno de syscall. */
 }
 
@@ -346,8 +323,12 @@ void process_kill(uint64_t pid){
 
     p->retval = -1;
 
-    /* Limpiar semaforos antes de liberar recursos para evitar deadlock. */
+    /* Limpiar semaforos, colas de pipes y el waiter de teclado antes de liberar
+       recursos: evita deadlock, PIDs colgantes en colas de pipe y un puntero
+       colgante en el driver de teclado. */
     sem_cleanup_for_process(pid);
+    pipe_cleanup_for_process(pid);
+    kbd_clear_waiting(p);
 
     /* Despertar padre si estaba esperando este proceso. */
     PCB *parent = process_get(p->parent_pid);

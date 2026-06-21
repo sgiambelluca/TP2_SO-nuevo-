@@ -18,6 +18,15 @@ static PCB* run_queue[MAX_PROCESSES];
 static int queue_size = 0;
 static int queue_idx  = 0;
 
+/* Proceso idle: corre hlt cuando no hay ningun otro proceso READY. NO vive en la
+   run_queue ni participa del aging/seleccion normal; solo se devuelve como fallback
+   en scheduler_next_ready. Asi nunca le roba CPU a procesos reales. */
+static PCB* idle_pcb = NULL;
+
+void scheduler_set_idle(PCB* p){
+    idle_pcb = p;
+}
+
 /* Bono de aging: +1 por cada AGING_INTERVAL ticks esperando, hasta el tope. */
 static int aging_bonus(const PCB *p){
     int b = (int)(p->wait_ticks / AGING_INTERVAL);
@@ -55,6 +64,9 @@ void scheduler_start(void){
    prioridad, el orden de llegada se preserva. */
 void scheduler_add(PCB* p){
     if(queue_size >= MAX_PROCESSES) return;
+    /* El idle nunca entra a la run_queue: es solo fallback (incluso si un nice/add
+       lo intentara reinsertar). */
+    if(p == idle_pcb) return;
 
     /* Insertar en orden descendente por prioridad. */
     int insert_pos = queue_size;
@@ -107,7 +119,7 @@ void scheduler_remove(PCB* p){
 */
 PCB* scheduler_next_ready(void){
     if(queue_size == 0){
-        return NULL;
+        return idle_pcb;   /* nadie en la cola: idle (o NULL si aun no se seteo) */
     }
 
     /* Encontrar la prioridad efectiva mas alta entre procesos READY.
@@ -123,7 +135,7 @@ PCB* scheduler_next_ready(void){
             }
         }
     }
-    if(highest_eff < 0) return NULL;
+    if(highest_eff < 0) return idle_pcb;   /* nadie READY: correr idle */
 
     /* Pasada 1: preferir foreground con prioridad efectiva == highest_eff */
     for(int i = 0; i < queue_size; i++){
@@ -147,7 +159,7 @@ PCB* scheduler_next_ready(void){
         }
     }
 
-    return NULL;
+    return idle_pcb;   /* fallback: nadie READY -> idle */
 }
 
 /* 
