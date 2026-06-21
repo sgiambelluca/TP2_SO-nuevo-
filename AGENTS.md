@@ -69,7 +69,7 @@ Run these **inside the running OS shell**. They must work as both foreground and
 
 - **Zero `-Wall` warnings.** Kernel and userland compile with `-Wall -Wextra -Werror -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls -Wformat -Wstrict-prototypes -Wno-unused-parameter -ffreestanding -nostdlib -mno-red-zone -fno-common -fno-pie -fno-exceptions -fno-asynchronous-unwind-tables -mno-mmx -mno-sse -mno-sse2 -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc -std=c99`.
 - **No busy waiting** except where explicitly allowed (`loop` command, `test_sync` without semaphores).
-- **No deadlocks, no race conditions.** Semaphore and MVar state/value updates are protected by a spinlock acquired via `atomic_xchg` (test-and-set) — see `Kernel/asm/libasm.asm`, `Kernel/c/semaphore/semaphore.c`, and `Kernel/c/syscall/mvar.c`.
+- **No deadlocks, no race conditions.** Semaphore state/value updates are protected by a spinlock acquired via `atomic_xchg` (test-and-set) — see `Kernel/asm/libasm.asm` and `Kernel/c/semaphore/semaphore.c`. MVar is a userland app (`Userland/c/commands/mvar.c`) built on top of those semaphores, so its atomicity is inherited from them — it has no kernel-side lock of its own.
 - **No binaries in repo** — `.o`, `.bin`, `.img`, `.qcow2`, `.vmdk` are already in `.gitignore`.
 - **Spanish** for code, comments, and commit messages.
 - `make`, `make all`, and `make <memory_manager>` are reserved **exclusively** for compilation inside the Docker image. Other tasks (run QEMU, pull image, etc.) must use the provided scripts.
